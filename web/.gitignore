@@ -19,5 +19,7 @@ selenium-debug.log
 *.sln
 *.local
 
+# 锁文件要提交：它锁定了依赖树，保证所有人和 CI 装出一致的版本。
+# 忽略 yarn.lock 会导致不同机器解析出不同版本，出现"我这里能跑你那里报错"。
+# package-lock.json 保留忽略，因为本项目用 yarn（有 yarn.lock 就够）。
 package-lock.json
-yarn.lock
