@@ -11,7 +11,12 @@ import usePermissionStore from '@/store/modules/permission'
 
 NProgress.configure({ showSpinner: false })
 
-const whiteList = ['/login', '/register', '/index']
+// 免登录白名单。
+// 注意：不要把 '/index' 放进来。/index 是 Layout 的子路由，属于登录后可见的页面；
+// 一旦放行，守卫在有 token 时也会直接 next()，从不调用 generateRoutes()，
+// 于是 sidebarRouters 始终为空 —— 表现就是"页面能开但左侧没有任何菜单"。
+// 未登录访问 /index 会被下面的 else 分支重定向到 /login?redirect=/index，登录后再跳回。
+const whiteList = ['/login', '/register']
 
 const isWhiteList = (path) => {
   return whiteList.some(pattern => isPathMatch(pattern, path))

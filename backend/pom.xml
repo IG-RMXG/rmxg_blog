@@ -51,12 +51,9 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
+    <!--
+      不要在这里声明 spring-boot-maven-plugin：它会被 core / redis 这类
+      库模块继承，然后 repackage 会因为"找不到主类"而构建失败。
+      该插件只在 system-service / gateway-service 两个可执行模块里声明。
+    -->
 </project>

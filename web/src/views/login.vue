@@ -356,16 +356,37 @@ function getCookie() {
   const username = Cookies.get("username")
   const password = Cookies.get("password")
   const rememberMe = Cookies.get("rememberMe")
+  // 注意：必须保留 captchaToken，否则下面 proceedWithLogin 传给后端的
+  // 第四个参数会是 undefined，滑块验证码就白做了。
   loginForm.value = {
     username: username === undefined ? loginForm.value.username : username,
     password: password === undefined ? loginForm.value.password : decrypt(password),
-    rememberMe: rememberMe === undefined ? false : Boolean(rememberMe)
+    rememberMe: rememberMe === undefined ? false : Boolean(rememberMe),
+    captchaToken: loginForm.value.captchaToken
   }
 }
 
+// 滑块验证通过后真正调用后端登录
 function proceedWithLogin() {
-  console.log("执行登录操作！！！！！！")
-  router.push({ path: '/index' });
+  loading.value = true
+  userStore.login({
+    username: loginForm.value.username,
+    password: loginForm.value.password,
+    rememberMe: loginForm.value.rememberMe,
+    captchaToken: loginForm.value.captchaToken
+  }).then(() => {
+    const query = route.query
+    const otherQueryParams = Object.keys(query).reduce((acc, cur) => {
+      if (cur !== "redirect") {
+        acc[cur] = query[cur]
+      }
+      return acc
+    }, {})
+    router.push({ path: redirect.value || "/index", query: otherQueryParams })
+  }).catch(() => {
+    loading.value = false
+    refreshCaptcha()
+  })
 }
 
 getCookie()

@@ -65,11 +65,29 @@
             <version>8.0.33</version>
         </dependency>
 
+        <!--
+          注意：原来这里依赖的是 cn.CDPersonal:common，但 common 是
+          <packaging>pom</packaging> 的聚合模块，不产出 jar，
+          命令行 mvn 会报 "Could not find artifact cn.CDPersonal:common:jar:1.0"。
+          真正的 jar 是 core / redis 两个子模块（gateway-service 就是这么引的）。
+        -->
         <dependency>
             <groupId>cn.CDPersonal</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>core</artifactId>
             <version>1.0</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>cn.CDPersonal</groupId>
+            <artifactId>redis</artifactId>
+            <version>1.0</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- 密码加密（BCrypt），只引 crypto，不引入整个 spring-security -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
         <!-- pagehelper 分页插件 -->
@@ -93,5 +111,15 @@
         </dependency>
 
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 可执行模块：打可运行 jar，需在模块内声明（根 pom 不能声明，见根 pom 注释） -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

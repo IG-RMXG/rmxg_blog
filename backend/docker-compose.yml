@@ -1,44 +1,125 @@
-services:
-  nacos:
-    image: nacos/nacos-server:v2.2.3
-    container_name: nacos-server
-    environment:
-      - MODE=standalone
-      - SPRING_DATASOURCE_PLATFORM=mysql
-      - MYSQL_SERVICE_HOST=mysql
-      - MYSQL_SERVICE_DB_NAME=nacos_dev
-      - MYSQL_SERVICE_USER=root
-      - MYSQL_SERVICE_PASSWORD=123456
-    ports:
-      - "8848:8848"
-    depends_on:
-      - mysql
-    networks:
-      - blog-network
+# =====================================================================
+# 本地开发中间件（统一入口）
+#
+# 这套 compose 同时服务两个项目：
+#   1. rmxg_blog 自带后端骨架  -> 库 nacos_dev / system
+#   2. RuoYi-Cloud（主力）      -> 库 ry-cloud / ry-config / ry-seata
+#
+# 常用命令（在任意位置执行，靠 --project-directory 固定项目名）：
+#   docker compose -f backend/docker-compose.yml --project-directory backend ps
+#   docker compose -f backend/docker-compose.yml --project-directory backend up -d
+#   docker compose -f backend/docker-compose.yml --project-directory backend down
+#
+# 项目名固定为 backend，所以数据卷名是 backend_mysql_data / backend_redis_data，
+# 与之前保持一致，不会丢数据。
+# =====================================================================
 
+services:
   mysql:
     image: mysql:8.0
     container_name: mysql-server
+    restart: unless-stopped
+    command:
+      # 统一使用 mysql_native_password，兼容老客户端 / 老版本连接器
+      - --default-authentication-plugin=mysql_native_password
+      # 大小写不敏感的表名匹配，避免 Windows 开发与 Linux 生产行为不一致
+      - --lower_case_table_names=1
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+08:00
+      - --max_connections=1000
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: &mysqlPassword "123456"
       MYSQL_DATABASE: nacos_dev
+      TZ: Asia/Shanghai
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      # 仅在数据卷为空的首次启动时执行，按文件名顺序：
+      #   00_create_databases.sql  建 nacos_dev / system 库（rmxg_blog 骨架用）
+      #   02_nacos_schema.sql      Nacos 2.2.3 表结构
+      #   03_sys_dict_type.sql     system 库：字典类型表
+      #   04_sys_dict_data.sql     system 库：字典数据表 + 基础数据
+      #
+      # 注意：RuoYi-Cloud 的 ry-cloud / ry-config / ry-seata 是手动导入的
+      #      （见 docker/mysql/README.md），卷重建后需要重新导入。
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - blog-network
+
+  nacos:
+    # 必须是 3.x：RuoYi-Cloud 用 Spring Boot 4.1.0 + Spring Cloud 2025.1.2
+    # + Spring Cloud Alibaba 2025.1.0.0，配套 Nacos 客户端 3.x，连 2.x 服务端不可用
+    image: nacos/nacos-server:v3.0.2
+    container_name: nacos-server
+    restart: unless-stopped
+    environment:
+      - MODE=standalone
+      # 持久化到 MySQL 的 ry-config 库（RuoYi-Cloud 的配置库）
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=mysql-server
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_DB_NAME=ry-config
+      - MYSQL_SERVICE_USER=root
+      - MYSQL_SERVICE_PASSWORD=123456
+      - MYSQL_SERVICE_DB_PARAM=characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=Asia/Shanghai
+      - JVM_XMS=256m
+      - JVM_XMX=512m
+      - JVM_XMN=128m
+      # Nacos 3.x 的硬性要求：即使关闭鉴权，也必须提供合法的 Base64 token，
+      # 否则启动脚本直接 exit 255 反复重启（2.x 没有这个限制）。
+      - NACOS_AUTH_ENABLE=false
+      - NACOS_AUTH_TOKEN=Yk9UcVB4R2hWbktUZnNEcU1qWXhMc0V2UmFEZ1BuSndUY1ptSGtWZFF4WXVOYWJQZA==
+      - NACOS_AUTH_IDENTITY_KEY=bmFjb3MtaWRlbnRpdHkta2V5
+      - NACOS_AUTH_IDENTITY_VALUE=bmFjb3MtaWRlbnRpdHktdmFsdWU=
+      - TZ=Asia/Shanghai
+    ports:
+      - "8848:8848"   # OpenAPI
+      - "9848:9848"   # gRPC 客户端
+      - "9849:9849"   # gRPC 服务端
+      - "8081:8080"   # Nacos 3 控制台（容器内是 8080，宿主机挪到 8081）
+                      # 宿主机 8080 留给 RuoYi-Cloud 网关，避免冲突
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      # 注意：3.x 已废弃 /nacos/v1/console/health/readiness（返回 410 Gone）
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/ns/operator/metrics || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
     networks:
       - blog-network
 
   redis:
     image: redis:7.0-alpine
     container_name: redis-server
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - blog-network
 
 volumes:
   mysql_data:
+  redis_data:
 
 networks:
   blog-network:

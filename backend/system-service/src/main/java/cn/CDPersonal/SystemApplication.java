@@ -2,9 +2,13 @@ package cn.CDPersonal;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 
-@SpringBootApplication(exclude = {DataSourceAutoConfiguration.class })
+/*
+ * 原来的 exclude = {DataSourceAutoConfiguration.class} 会导致
+ * application.yml 里的 spring.datasource 配置完全不生效（数据源不被创建），
+ * 菜单/用户查询拿不到数据库连接，因此这里必须去掉。
+ */
+@SpringBootApplication
 public class SystemApplication {
     public static void main(String[] args)
     {

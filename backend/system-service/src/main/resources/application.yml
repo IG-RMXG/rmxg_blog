@@ -10,9 +10,30 @@ spring:
   application:
     name: system
 
-  # 数据源配置 (根据实际数据库信息修改)
+  # 数据源配置
+  # 指向 RuoYi-Cloud 的系统库 ry-cloud（含 sys_user / sys_menu / sys_role 等 31 张表）。
+  # 原来的 system 库已废弃（只有 sys_dict_type / sys_dict_data 两张表）。
   datasource:
-    url: jdbc:mysql://localhost:3306/system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/ry-cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Redis：用于存放登录 token（键 login_tokens:<uuid>）
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  # Jackson 时区。
+  # 数据源 URL 里 serverTimezone=Asia/Shanghai 是按东八区解析 DATETIME 的，
+  # 但 Jackson 序列化 Date 默认用 UTC，导致接口返回的时间比库里少 8 小时
+  # （库里 02:01:45，接口回 18:01:45）。后果是按界面显示的日期做时间范围筛选会对不上。
+  # 显式指定东八区后，接口时间与库内时间一致。
+  jackson:
+    time-zone: GMT+8
+
+# MyBatis：把库里的下划线字段自动映射到驼峰属性（sys_menu.menu_name -> menuName）
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true

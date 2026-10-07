@@ -4,6 +4,7 @@ import { getRouters } from '@/api/menu'
 import Layout from '@/layout/index'
 import ParentView from '@/components/ParentView'
 import InnerLink from '@/layout/components/InnerLink'
+import { isHttp } from '@/utils/validate'
 
 // 匹配views里面所有的.vue文件
 const modules = import.meta.glob('./../../views/**/*.vue')
@@ -58,6 +59,15 @@ const usePermissionStore = defineStore(
 // 遍历后台传来的路由字符串，转换为组件对象
 function filterAsyncRouter(asyncRouterMap, lastRouter = false, type = false) {
   return asyncRouterMap.filter(route => {
+    // 后台顶级菜单的 path 存的是 'system' / 'monitor' / 'tool'（不带前导斜杠，
+    // 这是 RuoYi 的标准存法）。但这些会被 router.addRoute() 注册为顶级路由，
+    // 而 vue-router 4 要求顶级 path 必须以 '/' 开头，否则抛出
+    //   Route paths should start with a "/": "system" should be "/system"
+    // 导致路由注册中断、登录后无法跳转。这里统一补上前导斜杠。
+    // 子路由保持相对路径（由 filterChildren 拼接），不做处理。
+    if (!lastRouter && route.path && !route.path.startsWith('/') && !isHttp(route.path)) {
+      route.path = '/' + route.path
+    }
     if (type && route.children) {
       route.children = filterChildren(route.children)
     }

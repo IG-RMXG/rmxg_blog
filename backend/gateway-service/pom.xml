@@ -66,4 +66,14 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <!-- 可执行模块：打可运行 jar，需在模块内声明（根 pom 不能声明，见根 pom 注释） -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
 </project>
