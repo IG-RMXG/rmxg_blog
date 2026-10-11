@@ -49,6 +49,11 @@ export default defineConfig(({ mode, command }) => {
           target: 'http://localhost:8889',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
+        },
+        // 上传文件静态资源（头像/博客图片），由网关转发到 system-service 回源
+        '/profile': {
+          target: 'http://localhost:8889',
+          changeOrigin: true
         }
       }
     },

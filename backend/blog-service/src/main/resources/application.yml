@@ -1,0 +1,55 @@
+# =====================================================================
+# blog-service —— 独立博客微服务
+#
+# 端口 8010，无 context-path：
+#   /blog/**           业务接口（文章 / 分类 / 标签 / 评论 / 上传）
+#   /profile/blog/**   上传图片的静态资源
+# 网关（gateway-service）把上面两类路径转发到这里。
+#
+# 迁移提示：下面所有外部依赖都支持环境变量覆盖，
+# 换机器/换库只需要设 BLOG_DB_* / BLOG_REDIS_*，不用改代码。
+# =====================================================================
+server:
+  port: ${BLOG_PORT:8010}
+
+spring:
+  application:
+    name: blog
+
+  # 与 system-service 共用 ry-cloud 库：
+  #   - 读写本模块自己的 blog_* 表
+  #   - 只读 sys_user / sys_role / sys_user_role 用于鉴权（角色判定）
+  datasource:
+    url: ${BLOG_DB_URL:jdbc:mysql://localhost:3306/ry-cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${BLOG_DB_USERNAME:root}
+    password: ${BLOG_DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 与 system-service 共用 Redis：登录 token 存在 login_tokens:<uuid>
+  data:
+    redis:
+      host: ${BLOG_REDIS_HOST:localhost}
+      port: ${BLOG_REDIS_PORT:6379}
+      password: ${BLOG_REDIS_PASSWORD:}
+      database: ${BLOG_REDIS_DATABASE:0}
+
+  jackson:
+    time-zone: GMT+8
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 上传文件落盘目录：走 JVM 参数 -Dapp.upload.path=... 或环境变量 APP_UPLOAD_PATH，
+# 未设置时用「进程工作目录/uploads」。（这里不用 spring 配置项，避免看起来生效其实没生效）
+
+# 登录 token 有效期（分钟）。必须与 system-service 的 TokenService.EXPIRE_MINUTES 保持一致，
+# 否则本服务刷新 token 过期时间时会与登录服务不一致。
+blog:
+  auth:
+    token-expire-minutes: ${BLOG_TOKEN_EXPIRE_MINUTES:30}

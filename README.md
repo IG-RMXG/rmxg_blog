@@ -10,15 +10,33 @@
 rmxg_blog/
 ├── backend/          后端（Spring Cloud Alibaba 微服务）
 │   ├── common/       公共模块
-│   │   ├── core/     核心工具、通用实体与基础控制器
+│   │   ├── core/     核心响应体（ResponseVO / ResponseStatus）
 │   │   └── redis/    Redis 封装
-│   ├── gateway-service/   网关服务
-│   ├── system-service/    系统服务（业务主体）
+│   ├── gateway-service/   网关服务（8889，按路径转发到各业务服务）
+│   ├── system-service/    系统服务（8000，用户 / 角色 / 菜单 / 部门等）
+│   ├── blog-service/      博客服务（8010，文章 / 分类 / 标签 / 评论，可独立迁移）
 │   └── docker-compose.yml 本地基础设施编排
 └── web/              前端（Vue 3 + Vite）
     ├── src/
     └── vite/
 ```
+
+## 服务与端口
+
+| 服务 | 端口 | 说明 |
+| --- | --- | --- |
+| gateway-service | 8889 | 唯一入口，按路径前缀转发 |
+| system-service | 8000 | 系统业务，context-path `/system` |
+| blog-service | 8010 | 博客业务，无 context-path，见 [blog-service/README](backend/blog-service/README.md) |
+| 前端 vite | 80 | 开发服务器 |
+| MySQL / Redis / Nacos | 3306 / 6379 / 8848（控制台 8081） | docker-compose 提供 |
+
+网关路由（`gateway-service` → 各服务）：
+
+| 网关路径 | 目标服务 |
+| --- | --- |
+| `/system/**`、`/auth/**`、`/schedule/**`、`/code/**`、`/profile/avatar/**` | system-service |
+| `/blog/**`、`/profile/blog/**` | blog-service |
 
 ## 技术栈
 
@@ -32,7 +50,7 @@ rmxg_blog/
 | Spring Cloud Alibaba | 2023.0.1.0 |
 | groupId / artifactId | `cn.CDPersonal` / `blog-platform` |
 
-Maven 多模块：`system-service`、`gateway-service`、`common`（含 `core`、`redis`）。
+Maven 多模块：`system-service`、`blog-service`、`gateway-service`、`common`（含 `core`、`redis`）。
 
 ### 前端 `web/`
 
@@ -73,8 +91,11 @@ docker compose up -d
 ```bash
 cd backend
 mvn clean install -DskipTests
-# 依次启动 gateway-service、system-service
+# 依次启动 system-service(8000)、blog-service(8010)、gateway-service(8889)
 ```
+
+> 博客的表结构与菜单数据在 `backend/blog-service/src/main/resources/sql/blog.sql`，
+> 首次使用需要先执行一次（目标库 `ry-cloud`）。
 
 ### 3. 启动前端
 

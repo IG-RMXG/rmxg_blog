@@ -7,10 +7,25 @@ spring:
     redis:
       host: localhost
       port: 6379
+  servlet:
+    multipart:
+      # 网关只做原样转发，不能让 Spring 提前解析 multipart：
+      # 一旦被 MultipartResolver 包装，控制器就拿不到原始请求体，
+      # 会导致 /blog/upload 这类文件上传在网关处直接 400。
+      # 关掉后由下游服务（blog-service）自己解析 multipart。
+      enabled: false
 
 # 服务端口
 server:
   port: 8889
+
+# 转发目标（ServiceForwardController 用）
+gateway:
+  forward:
+    # 系统服务：/system/** /auth/** /schedule/** /code/** /profile/avatar/** 等
+    system-service: ${GATEWAY_SYSTEM_SERVICE:http://localhost:8000}
+    # 博客服务：/blog/** 与 /profile/blog/**
+    blog-service: ${GATEWAY_BLOG_SERVICE:http://localhost:8010}
 
 #
 cd:

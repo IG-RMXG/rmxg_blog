@@ -61,6 +61,7 @@ Write-Host '==================== 应用服务 ========================' -Foregro
 $services = @(
     @{ Name = '前端 vite';        Port = 80;   Url = 'http://127.0.0.1:80/';                    Probe = 'HTTP' }
     @{ Name = 'system-service';   Port = 8000; Url = 'http://127.0.0.1:8000/system/';           Probe = 'HTTP' }
+    @{ Name = 'blog-service';     Port = 8010; Url = 'http://127.0.0.1:8010/';                  Probe = 'HTTP' }
     @{ Name = 'gateway-service';  Port = 8889; Url = 'http://127.0.0.1:8889/';                  Probe = 'HTTP' }
     @{ Name = 'RuoYi 网关';       Port = 8080; Url = 'http://127.0.0.1:8080/';                  Probe = 'HTTP' }
     @{ Name = 'RuoYi 认证';       Port = 9200; Url = 'http://127.0.0.1:9200/';                  Probe = 'HTTP' }

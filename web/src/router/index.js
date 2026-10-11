@@ -157,6 +157,34 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/blog/article-edit',
+    component: Layout,
+    hidden: true,
+    permissions: ['blog:article:list'],
+    children: [
+      {
+        path: ':articleId?',
+        component: () => import('@/views/blog/article/edit'),
+        name: 'BlogArticleEdit',
+        meta: { title: '文章编辑', activeMenu: '/blog/article' }
+      }
+    ]
+  },
+  {
+    path: '/blog/article-detail',
+    component: Layout,
+    hidden: true,
+    permissions: ['blog:article:list'],
+    children: [
+      {
+        path: ':articleId',
+        component: () => import('@/views/blog/article/detail'),
+        name: 'BlogArticleDetail',
+        meta: { title: '文章详情', activeMenu: '/blog/article' }
+      }
+    ]
   }
 ]
 
