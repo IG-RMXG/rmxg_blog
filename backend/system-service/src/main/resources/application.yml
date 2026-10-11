@@ -1,6 +1,8 @@
 # 应用服务配置
+# 全部支持环境变量覆盖：UAT 环境用 SYSTEM_PORT=8001、SYSTEM_DB_URL 指向 ry-cloud-uat、
+# SYSTEM_REDIS_DATABASE=1 即可平行起一套，不影响 DEV（见 scripts/uat-up.ps1）。
 server:
-  port: 8000
+  port: ${SYSTEM_PORT:8000}
   servlet:
     context-path: /system
 
@@ -14,16 +16,18 @@ spring:
   # 指向 RuoYi-Cloud 的系统库 ry-cloud（含 sys_user / sys_menu / sys_role 等 31 张表）。
   # 原来的 system 库已废弃（只有 sys_dict_type / sys_dict_data 两张表）。
   datasource:
-    url: jdbc:mysql://localhost:3306/ry-cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: ${SYSTEM_DB_URL:jdbc:mysql://localhost:3306/ry-cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SYSTEM_DB_USERNAME:root}
+    password: ${SYSTEM_DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   # Redis：用于存放登录 token（键 login_tokens:<uuid>）
+  # database 序号是 DEV/UAT 会话隔离的关键：UAT 用 db1，token 互不相通
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SYSTEM_REDIS_HOST:localhost}
+      port: ${SYSTEM_REDIS_PORT:6379}
+      database: ${SYSTEM_REDIS_DATABASE:0}
 
   # Jackson 时区。
   # 数据源 URL 里 serverTimezone=Asia/Shanghai 是按东八区解析 DATETIME 的，

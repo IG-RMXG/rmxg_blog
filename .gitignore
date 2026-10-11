@@ -25,6 +25,15 @@ logs/
 tmp/
 temp/
 
+# ===== 运行时上传文件（头像 / 博客图片）=====
+# 服务把上传文件落在工作目录的 uploads/ 下：
+#   blog-service -> backend/uploads/blog/
+#   system-service -> backend/system-service/uploads/avatar/
+# 这些是运行时产物，不进仓库（任意层级的 uploads 目录都忽略）
+uploads/
+smoke-*.log
+.esbuild-tmp/
+
 # ===== 构建产物 =====
 target/
 dist/

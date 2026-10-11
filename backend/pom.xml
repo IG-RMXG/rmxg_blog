@@ -11,6 +11,7 @@
     <modules>
         <module>system-service</module>
         <module>blog-service</module>
+        <module>uat-service</module>
         <module>gateway-service</module>
         <module>common</module>
     </modules>

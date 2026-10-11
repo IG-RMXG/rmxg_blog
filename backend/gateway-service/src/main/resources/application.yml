@@ -15,9 +15,9 @@ spring:
       # 关掉后由下游服务（blog-service）自己解析 multipart。
       enabled: false
 
-# 服务端口
+# 服务端口（UAT 网关用 8890，见 scripts/uat-up.ps1）
 server:
-  port: 8889
+  port: ${GATEWAY_PORT:8889}
 
 # 转发目标（ServiceForwardController 用）
 gateway:
@@ -26,6 +26,9 @@ gateway:
     system-service: ${GATEWAY_SYSTEM_SERVICE:http://localhost:8000}
     # 博客服务：/blog/** 与 /profile/blog/**
     blog-service: ${GATEWAY_BLOG_SERVICE:http://localhost:8010}
+    # UAT 测试服务：默认留空（DEV 不路由 /uat/**，返回 404）；
+    # UAT 环境启动网关时设 GATEWAY_UAT_SERVICE=http://localhost:8020
+    uat-service: ${GATEWAY_UAT_SERVICE:}
 
 #
 cd:

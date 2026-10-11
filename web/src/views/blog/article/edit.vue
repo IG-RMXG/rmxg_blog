@@ -179,8 +179,9 @@ loadArticle()
 .blog-editor-page {
   display: flex;
   flex-direction: column;
-  /* 84 = navbar(50) + tags-view(34)，再加上 app-container 的上下 padding 与底部版权留白 */
-  height: calc(100vh - 165px);
+  /* 84 = navbar(50) + tags-view(34)，再加上 app-container 的上下 padding 与底部版权留白；
+     --uat-banner-h 为 UAT 横幅高度（DEV 下为 0，行为不变） */
+  height: calc(100vh - 165px - var(--uat-banner-h, 0px));
   min-height: 540px;
 }
 

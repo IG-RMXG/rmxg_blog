@@ -50,7 +50,33 @@ rmxg_blog/
 | Spring Cloud Alibaba | 2023.0.1.0 |
 | groupId / artifactId | `cn.CDPersonal` / `blog-platform` |
 
-Maven 多模块：`system-service`、`blog-service`、`gateway-service`、`common`（含 `core`、`redis`）。
+Maven 多模块：`system-service`、`blog-service`、`uat-service`、`gateway-service`、`common`（含 `core`、`redis`）。
+
+## UAT 验收环境（与 DEV 完全隔离）
+
+测试功能不进 DEV 的隔离方式：代码同仓库同主干，DEV **不启动** `uat-service` 且网关不路由 `/uat/**`（默认 404），无分支无冲突。
+
+| 维度 | DEV | UAT |
+| --- | --- | --- |
+| system-service / blog-service | 8000 / 8010（IDEA） | 8001 / 8011（jar） |
+| uat-service（假登录等测试功能） | **不存在** | 8020 |
+| gateway | 8889 | 8890 |
+| 前端 | 80（`yarn dev`） | 81（`yarn dev:uat`） |
+| MySQL | `ry-cloud` | `ry-cloud-uat` |
+| Redis | db 0 | db 1（会话互不相通） |
+
+UAT 定制功能：登录页「快捷进入」（免密免验证码）、顶栏横幅一键切换管理员/普通用户（验收分权）。均只在 `VITE_APP_ENV=uat` 时渲染，生产构建恒不出现。
+
+```powershell
+# 1. 初始化 UAT 库（从 DEV 导种子，幂等，随时重置）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\init-uat-db.ps1
+# 2. 启动 UAT 后端（构建 + 8001/8011/8020/8890）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uat-up.ps1
+# 3. 启动 UAT 前端（端口 81）
+cd web; yarn dev:uat
+# 停止 UAT 后端
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uat-down.ps1
+```
 
 ### 前端 `web/`
 

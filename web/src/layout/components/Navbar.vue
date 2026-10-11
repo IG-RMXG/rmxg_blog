@@ -1,5 +1,8 @@
 <template>
-  <div class="navbar">
+  <!-- UAT 专属横幅：包一层让原 .navbar 布局不变；生产构建 isUat 恒 false 不渲染 -->
+  <div>
+    <uat-banner v-if="isUat" />
+    <div class="navbar">
     <hamburger id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggleClick="toggleSideBar" />
     <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
     <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
@@ -50,6 +53,7 @@
         </template>
       </el-dropdown>
     </div>
+    </div>
   </div>
 </template>
 
@@ -62,6 +66,8 @@ import Screenfull from '@/components/Screenfull'
 import SizeSelect from '@/components/SizeSelect'
 import HeaderSearch from '@/components/HeaderSearch'
 import RuoYiGit from '@/components/RuoYi/Git'
+import UatBanner from '@/components/UatBanner'
+import { isUat } from '@/utils/uat'
 import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'

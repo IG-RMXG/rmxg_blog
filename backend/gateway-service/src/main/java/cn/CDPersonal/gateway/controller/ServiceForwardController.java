@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
@@ -87,10 +89,18 @@ public class ServiceForwardController {
     @Value("${gateway.forward.blog-service:http://localhost:8010}")
     private String blogServiceBase;
 
+    /**
+     * UAT 测试服务地址。默认为空（DEV 不路由 /uat/**，直接 404）；
+     * 只有 UAT 环境启动网关时设置 GATEWAY_UAT_SERVICE=http://localhost:8020 才生效。
+     * 这是「测试功能不进 DEV」的第一道闸门。
+     */
+    @Value("${gateway.forward.uat-service:}")
+    private String uatServiceBase;
+
     private final RestClient restClient = RestClient.create();
 
     @RequestMapping(
-            value = {"/system/**", "/auth/**", "/schedule/**", "/code/**", "/profile/**", "/blog/**"},
+            value = {"/system/**", "/auth/**", "/schedule/**", "/code/**", "/profile/**", "/blog/**", "/uat/**"},
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
                     RequestMethod.DELETE, RequestMethod.PATCH, RequestMethod.OPTIONS}
     )
@@ -98,7 +108,18 @@ public class ServiceForwardController {
 
         String path = request.getRequestURI();
         String query = request.getQueryString();
-        String target = resolveTarget(path) + (query != null ? "?" + query : "");
+        String target = resolveTarget(path);
+
+        // /uat/** 但未配置 uat-service：DEV 环境的默认姿态，明确 404 而不是 502
+        if (target == null) {
+            log.warn("拒绝 {} {}: gateway.forward.uat-service 未配置（DEV 默认不路由 UAT 测试功能）",
+                    request.getMethod(), path);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"code\":404,\"msg\":\"uat service not routed\"}"
+                            .getBytes(StandardCharsets.UTF_8));
+        }
+        String fullTarget = target + (query != null ? "?" + query : "");
 
         // 直接读原始请求体：网关不解析 multipart（见 gateway-service 的 application.yml），
         // 这样文件上传的字节流能原样透传给下游服务。
@@ -111,13 +132,13 @@ public class ServiceForwardController {
         if (log.isDebugEnabled()) {
             // 摘要日志：Body 不打印（登录请求含明文密码，日志要长期留存，打出来是泄密）
             log.debug("转发 {} {} -> {} ({} 字节{}) [traceId={}]",
-                    method, displayPath, target, payload.length,
+                    method, displayPath, fullTarget, payload.length,
                     payload.length > 0 ? ", " + describeContentType(request) : "",
                     traceId);
         }
 
         RestClient.RequestBodySpec spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
-                .uri(URI.create(target))
+                .uri(URI.create(fullTarget))
                 .headers(headers -> {
                     Collections.list(request.getHeaderNames()).forEach(name -> {
                         // 逐跳头和长度头不能原样带过去，见 HOP_BY_HOP_HEADERS 注释
@@ -154,13 +175,13 @@ public class ServiceForwardController {
 
             if (status >= 500) {
                 log.error("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
-                        status, displayPath, cost, bodySize, target, traceId);
+                        status, displayPath, cost, bodySize, fullTarget, traceId);
             } else if (status >= 400) {
                 log.warn("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
-                        status, displayPath, cost, bodySize, target, traceId);
+                        status, displayPath, cost, bodySize, fullTarget, traceId);
             } else {
                 log.info("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
-                        status, displayPath, cost, bodySize, target, traceId);
+                        status, displayPath, cost, bodySize, fullTarget, traceId);
             }
             return result;
 
@@ -169,25 +190,32 @@ public class ServiceForwardController {
             long cost = System.currentTimeMillis() - start;
             int status = e.getStatusCode().value();
             log.error("下游报错 {} {} ({} ms) -> {} [traceId={}] : {}",
-                    status, displayPath, cost, target, traceId, e.getMessage());
+                    status, displayPath, cost, fullTarget, traceId, e.getMessage());
             throw e;
 
         } catch (Exception e) {
             // 连不上下游（服务没起 / 端口不通）：这是"登录报后端接口连接异常"最常见的原因
             long cost = System.currentTimeMillis() - start;
             log.error("转发失败 {} {} ({} ms) -> {} [traceId={}] : {}（下游服务是否已启动？）",
-                    method, displayPath, cost, target, traceId, e.getMessage(), e);
+                    method, displayPath, cost, fullTarget, traceId, e.getMessage(), e);
             throw e;
         }
     }
 
     /**
-     * 按路径前缀解析真实后端地址。
+     * 按路径前缀解析真实后端地址；返回 null 表示该路由在当前环境未启用。
      *
      * 注意顺序：/profile/blog/** 必须先于通用的 /profile/** 判定，
      * 否则博客图片会被转发到 system-service（那里已经没有 /profile/blog/** 映射）。
      */
     private String resolveTarget(String path) {
+        // UAT 测试服务：只在配置了地址（即 UAT 环境）时路由，路径原样
+        if (isUatPath(path)) {
+            if (uatServiceBase == null || uatServiceBase.isBlank()) {
+                return null;
+            }
+            return uatServiceBase + path;
+        }
         if (isBlogPath(path)) {
             // blog-service 无 context-path，路径原样使用
             return blogServiceBase + path;
@@ -197,6 +225,10 @@ public class ServiceForwardController {
                 ? path
                 : "/system" + path;
         return systemServiceBase + mappedPath;
+    }
+
+    private boolean isUatPath(String path) {
+        return path.startsWith("/uat/") || path.equals("/uat");
     }
 
     private boolean isBlogPath(String path) {

@@ -6,6 +6,8 @@ import createVitePlugins from './vite/plugins'
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
   const { VITE_APP_ENV } = env
+  // 上传图片回源：UAT 前端走 UAT 网关（图片落在 UAT blog-service 的 uploads 目录）
+  const profileTarget = mode === 'uat' ? 'http://localhost:8890' : 'http://localhost:8889'
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -50,9 +52,16 @@ export default defineConfig(({ mode, command }) => {
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
         },
-        // 上传文件静态资源（头像/博客图片），由网关转发到 system-service 回源
+        // UAT 前端（yarn dev:uat，端口 81）专用代理：指向 UAT 网关 8890
+        // 与 /dev-api 前缀区分，两套前端可同时运行互不干扰
+        '/uat-api': {
+          target: 'http://localhost:8890',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/uat-api/, '')
+        },
+        // 上传文件静态资源（头像/博客图片）：UAT 模式回源 UAT 网关
         '/profile': {
-          target: 'http://localhost:8889',
+          target: profileTarget,
           changeOrigin: true
         }
       }

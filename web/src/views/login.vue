@@ -2,6 +2,18 @@
   <div class="login">
     <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
       <h3 class="title">{{ title }}</h3>
+      <!-- UAT 专属：免密快捷进入（生产构建 isUat 恒 false 不渲染） -->
+      <div v-if="isUat" class="uat-quick">
+        <div class="uat-quick-title">UAT 快捷进入（跳过密码与验证码）</div>
+        <div class="uat-quick-buttons">
+          <el-button size="large" type="warning" plain style="width: 50%" :loading="uatLoading === 'admin'" @click="uatEnter('admin')">
+            管理员
+          </el-button>
+          <el-button size="large" type="warning" plain style="width: 50%; margin-left: 0" :loading="uatLoading === 'user'" @click="uatEnter('user')">
+            普通用户
+          </el-button>
+        </div>
+      </div>
       <el-form-item prop="username">
         <el-input
             v-model="loginForm.username"
@@ -120,8 +132,19 @@ import useUserStore from '@/store/modules/user'
 import {ElMessage, ElNotification} from "element-plus";
 import {ref} from "vue";
 import { Refresh } from '@element-plus/icons-vue'
+import { isUat, enterAs } from '@/utils/uat'
 
 const title = import.meta.env.VITE_APP_TITLE
+const uatLoading = ref('')
+
+function uatEnter(role) {
+  uatLoading.value = role
+  enterAs(role).catch((e) => {
+    uatLoading.value = ''
+    ElMessage.error((e && e.message) || 'UAT 快捷进入失败，请确认 UAT 后端已启动')
+  })
+  // 成功时 enterAs 整页跳转，无需复位
+}
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
@@ -414,6 +437,30 @@ getCookie()
   width: 400px;
   padding: 25px 25px 5px 25px;
   z-index: 1;
+
+  .uat-quick {
+    margin: 0 0 20px 0;
+    padding: 12px;
+    background: #fdf6ec;
+    border: 1px solid #f3d19e;
+    border-radius: 6px;
+
+    .uat-quick-title {
+      color: #b88230;
+      font-size: 13px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .uat-quick-buttons {
+      display: flex;
+      gap: 8px;
+
+      :deep(.el-button + .el-button) {
+        margin-left: 8px;
+      }
+    }
+  }
 
   .el-input {
     height: 40px;

@@ -36,9 +36,17 @@ function addIframe() {
 </script>
 
 <style lang="scss" scoped>
+/*
+ * 高度补偿说明：
+ * 固定头部 = 导航栏(50) + 标签栏(34) + UAT 横幅。
+ * UAT 横幅只在验收环境渲染，它的高度由 UatBanner 组件用 ResizeObserver
+ * 写到根元素的 CSS 变量 --uat-banner-h 上（DEV 下该变量不存在）。
+ * 这里所有高度计算都减去该变量，默认 0px 时与原值完全等价，
+ * 横幅出现时内容自动下移，避免被固定头部盖住顶部。
+ */
 .app-main {
   /* 50= navbar  50  */
-  min-height: calc(100vh - 50px);
+  min-height: calc(100vh - 50px - var(--uat-banner-h, 0px));
   width: 100%;
   position: relative;
   overflow: hidden;
@@ -47,7 +55,7 @@ function addIframe() {
 .fixed-header + .app-main {
   overflow-y: auto;
   scrollbar-gutter: auto;
-  height: calc(100vh - 50px);
+  height: calc(100vh - 50px - var(--uat-banner-h, 0px));
   min-height: 0px;
 }
 
@@ -56,18 +64,18 @@ function addIframe() {
 }
 
 .fixed-header + .app-main {
-  margin-top: 50px;
+  margin-top: calc(50px + var(--uat-banner-h, 0px));
 }
 
 .hasTagsView {
   .app-main {
     /* 84 = navbar + tags-view = 50 + 34 */
-    min-height: calc(100vh - 84px);
+    min-height: calc(100vh - 84px - var(--uat-banner-h, 0px));
   }
 
   .fixed-header + .app-main {
-    margin-top: 84px;
-    height: calc(100vh - 84px);
+    margin-top: calc(84px + var(--uat-banner-h, 0px));
+    height: calc(100vh - 84px - var(--uat-banner-h, 0px));
     min-height: 0px;
   }
 }

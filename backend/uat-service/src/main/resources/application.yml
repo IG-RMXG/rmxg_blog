@@ -1,0 +1,48 @@
+# =====================================================================
+# uat-service —— UAT 验收专用服务（8020）
+#
+# 只部署在 UAT 环境。三重隔离保证它不影响 DEV：
+#   1. DEV 不启动本服务（scripts/uat-up.ps1 才会拉起）
+#   2. 网关 /uat/** 默认不路由（gateway.forward.uat-service 留空）
+#   3. 它写的 Redis db / 连的库都是 UAT 独立的那一份
+#
+# 关键契约：fake-login 签发的 token 必须能被「UAT 的 system-service」认出来，
+# 因此这里写的 Redis 库序号、键名（login_tokens:<uuid>）、会话 JSON 结构
+# 都要与 system-service 的 TokenService 保持一致，改一处必须同步另一处。
+# =====================================================================
+server:
+  port: ${UAT_PORT:8020}
+
+spring:
+  application:
+    name: uat
+
+  # 连 UAT 独立库（ry-cloud-uat），只做两件事：ensure 测试账号、按角色查 userId
+  datasource:
+    url: ${UAT_DB_URL:jdbc:mysql://localhost:3306/ry-cloud-uat?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${UAT_DB_USERNAME:root}
+    password: ${UAT_DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 与 UAT 的 system-service / blog-service 共用同一个 Redis db（默认 db1）
+  data:
+    redis:
+      host: ${UAT_REDIS_HOST:localhost}
+      port: ${UAT_REDIS_PORT:6379}
+      database: ${UAT_REDIS_DATABASE:1}
+
+  jackson:
+    time-zone: GMT+8
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# token 有效期（分钟）：与 system-service 的 TokenService.EXPIRE_MINUTES 一致
+uat:
+  token-expire-minutes: ${UAT_TOKEN_EXPIRE_MINUTES:30}
+
+logging:
+  level:
+    root: info
+    cn.CDPersonal: debug

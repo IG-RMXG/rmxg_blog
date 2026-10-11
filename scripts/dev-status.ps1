@@ -63,6 +63,10 @@ $services = @(
     @{ Name = 'system-service';   Port = 8000; Url = 'http://127.0.0.1:8000/system/';           Probe = 'HTTP' }
     @{ Name = 'blog-service';     Port = 8010; Url = 'http://127.0.0.1:8010/';                  Probe = 'HTTP' }
     @{ Name = 'gateway-service';  Port = 8889; Url = 'http://127.0.0.1:8889/';                  Probe = 'HTTP' }
+    @{ Name = 'system(UAT)';    Port = 8001; Url = 'http://127.0.0.1:8001/system/';         Probe = 'HTTP' }
+    @{ Name = 'blog(UAT)';      Port = 8011; Url = 'http://127.0.0.1:8011/blog/article/list'; Probe = 'HTTP' }
+    @{ Name = 'uat-service';    Port = 8020; Url = 'http://127.0.0.1:8020/uat/status';        Probe = 'HTTP' }
+    @{ Name = 'gateway(UAT)';   Port = 8890; Url = 'http://127.0.0.1:8890/';                  Probe = 'HTTP' }
     @{ Name = 'RuoYi 网关';       Port = 8080; Url = 'http://127.0.0.1:8080/';                  Probe = 'HTTP' }
     @{ Name = 'RuoYi 认证';       Port = 9200; Url = 'http://127.0.0.1:9200/';                  Probe = 'HTTP' }
     @{ Name = 'RuoYi 系统模块';   Port = 9201; Url = 'http://127.0.0.1:9201/';                  Probe = 'HTTP' }
