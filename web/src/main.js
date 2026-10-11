@@ -43,6 +43,8 @@ import ImageUpload from "@/components/ImageUpload"
 import ImagePreview from "@/components/ImagePreview"
 // 字典标签组件
 import DictTag from '@/components/DictTag'
+// 弹窗包装组件（带最大化/还原 + 整页布局适配）
+import AppDialog from '@/components/Dialog'
 
 const app = createApp(App)
 
@@ -81,4 +83,12 @@ app.use(ElementPlus, {
   size: Cookies.get('size') || 'default'
 })
 
+/*
+ * 全局覆盖 el-dialog：换成带「最大化 / 还原」按钮的包装组件。
+ *
+ * 放在 app.use(ElementPlus) 之后，用同名注册覆盖掉 Element Plus 自己的注册，
+ * 因此全站 29 处 <el-dialog>（视图里没有本地 import ElDialog）都会自动生效，无需逐个改。
+ * 包装组件对 props / 事件 / 插槽完全透传，并支持 :maximizable="false" 单独关掉按钮。
+ */
+app.component('ElDialog', AppDialog)
 app.mount('#app')

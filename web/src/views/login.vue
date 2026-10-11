@@ -66,6 +66,7 @@
       :before-close="handleCaptchaCancel"
       style="margin: 0 auto !important;top: 50% !important;transform: translateY(-50%) !important;"
       :close-on-click-modal="false"
+      :maximizable="false"
       destroy-on-close
   >
     <template #header>
