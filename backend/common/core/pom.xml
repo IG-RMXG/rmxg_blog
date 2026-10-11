@@ -17,4 +17,41 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <!--
+      core 是三个服务共用的基础模块（放统一响应体 + 日志配置 + 请求日志过滤器）。
+
+      下面这些依赖 scope 都是 provided：
+        - 编译 core 时能用到它们的类；
+        - 不会以传递依赖的形式强行塞给使用者。
+      三个服务本来就都引入了 spring-boot-starter-web（自带 Servlet API 和 Spring Web），
+      运行期一定拿得到这些类，所以 provided 是安全的，也能避免版本冲突。
+    -->
+    <dependencies>
+        <!-- Servlet API：RequestLoggingFilter 用到的 jakarta.servlet.* 在这里 -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Web / Spring Context：OncePerRequestFilter、@Component、@Order -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- SLF4J：日志门面，运行期由 logback 提供实现 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
 </project>

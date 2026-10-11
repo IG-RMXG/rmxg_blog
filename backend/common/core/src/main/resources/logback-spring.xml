@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+=====================================================================
+ 全项目共用的日志配置（放在 core 模块，三个服务通过依赖自动生效）
+
+ 三个服务（system-service / blog-service / gateway-service）都依赖
+ cn.CDPersonal:core，而这个文件放在 core 的 src/main/resources 下，
+ 会被打进 core-1.0.jar，Spring Boot 启动时按标准顺序就能扫到，
+ 所以每个服务都不需要再复制一份 logback-spring.xml。
+
+ 需求对应关系：
+   1. IDEA 控制台能看到日志        -> CONSOLE appender（默认已开启）
+   2. 日志落在「项目根目录/logs」   -> LOG_HOME，见下方路径说明
+   3. 按天截断                     -> RollingFileAppender + TimeBasedRollingPolicy
+   4. 只保留最近一个月             -> maxHistory=30 + totalSizeCap
+
+ 路径说明（重点）：
+   项目根目录 = 仓库根，即 backend 的上一级。
+   服务在 IDEA 里运行时，工作目录默认是「模块目录」
+   （例如 backend/blog-service），所以这里按 ${user.dir}/../.. 反推仓库根，
+   保证三个服务无论在哪个模块启动，日志都统一落在 仓库根/logs/。
+
+   想放到别处时不用改这个文件，加一个启动参数即可：
+       -Dlogging.file.path=D:/temp/logs
+=====================================================================
+-->
+<configuration>
+
+    <!-- 读取 Spring 环境里的配置项（需要在 logback-spring.xml 里用 springProperty） -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="app"/>
+    <springProperty scope="context" name="LOG_LEVEL" source="logging.level.root" defaultValue="INFO"/>
+
+    <!--
+      LOG_HOME：日志目录。
+
+      默认值直接写死成「相对当前工作目录往上两级」，也就是仓库根下面的 logs：
+        工作目录 backend/blog-service  -> ../..  -> 仓库根  -> 仓库根/logs
+
+      为什么不用 if 条件判断配置项是否为空：
+      logback 的条件标签需要 Janino 库，本项目没引，运行时会直接抛
+        IfModelHandler - Could not find Janino / EmptyStackException
+      导致配置加载失败、日志一条都不出。所以这里只用 property 的默认值语法，
+      不做条件判断。
+
+      覆盖方式（三个服务通用，任选其一）：
+        启动参数  -Dlogging.file.path=D:/temp/logs
+        启动参数  （写法二）logging.file.path=D:/temp/logs 前面加两个短横线
+        配置文件  logging.file.path: D:/temp/logs（写在对应模块的 application.yml 里）
+      springProperty 先读配置项，读不到才用 defaultValue，
+      所以一旦上面任一方式给了值，就以给的为准。
+    -->
+    <springProperty scope="context" name="LOG_HOME" source="logging.file.path"
+                    defaultValue="${user.dir}/../../logs"/>
+
+    <property name="APP" value="${APP_NAME}"/>
+
+    <!-- 控制台输出格式：时间 | 级别 | 进程号 | 线程 | 类名 : 消息 -->
+    <property name="CONSOLE_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{40}) : %msg%n"/>
+
+    <!-- 文件输出格式：带服务名，方便三个服务日志对照排查 -->
+    <property name="FILE_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${APP}] [%thread] %logger{50} : %msg%n"/>
+
+    <!-- ============ 1. 控制台：IDEA Run 窗口看的就是这个 ============ -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      ============ 2. 全量日志文件：按天截断，保留 30 天 ============
+      文件名  logs/blog-service.log
+      归档    logs/blog-service.2026-02-14.0.log.gz
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP}-service.log</file>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- 按天切割；%i 是同日超过 maxFileSize 时的分片序号 -->
+            <fileNamePattern>${LOG_HOME}/history/${APP}-service.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <!-- 保留最近 30 天（一天一个归档文件） -->
+            <maxHistory>30</maxHistory>
+            <!-- 兜底：所有归档总量上限，防止磁盘被写满 -->
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>false</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
+    <!--
+      ============ 3. 错误日志单独一份 ============
+      排查问题通常只需要看这份：logs/blog-service-error.log
+      用 LevelFilter 只放 ERROR，避免和全量日志混在一起。
+    -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP}-service-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/history/${APP}-service-error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+            <cleanHistoryOnStart>false</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
+    <!--
+      异步写盘：业务线程只把日志事件丢进队列，不阻塞请求。
+      queueSize 8192，队列满时由 discardingThreshold 决定丢弃 TRACE/DEBUG/INFO。
+      neverBlock=true：宁可丢日志也不能拖慢接口。
+    -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE"/>
+        <queueSize>8192</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <includeCallerData>false</includeCallerData>
+    </appender>
+
+    <appender name="ASYNC_ERROR_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ERROR_FILE"/>
+        <queueSize>2048</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <includeCallerData>false</includeCallerData>
+    </appender>
+
+    <!--
+      ============ 日志级别 ============
+      业务包固定 DEBUG 起步，能看到每个接口的进出参；
+      第三方框架压到 WARN，避免刷屏把有用的日志顶掉。
+    -->
+    <logger name="cn.CDPersonal" level="DEBUG"/>
+
+    <!-- 请求链路日志（RequestLoggingFilter / 网关转发日志）单独一个 logger，方便按需调级 -->
+    <logger name="cn.CDPersonal.request" level="DEBUG"/>
+
+    <!-- MyBatis：想看 SQL 和参数就把下面这行放开（会打印大量日志） -->
+    <!-- <logger name="cn.CDPersonal.blog.mapper" level="DEBUG"/> -->
+    <!-- <logger name="cn.CDPersonal.auth.mapper" level="DEBUG"/> -->
+
+    <!-- 框架降噪 -->
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.apache" level="WARN"/>
+    <logger name="org.mybatis" level="INFO"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="io.lettuce" level="WARN"/>
+    <logger name="com.alibaba" level="WARN"/>
+    <logger name="com.anji" level="INFO"/>
+
+    <!-- 根日志：控制台 + 全量文件 + 错误文件 -->
+    <root level="${LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+        <appender-ref ref="ASYNC_ERROR_FILE"/>
+    </root>
+
+</configuration>

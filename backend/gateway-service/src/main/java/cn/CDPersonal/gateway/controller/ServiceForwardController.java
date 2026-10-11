@@ -1,6 +1,9 @@
 package cn.CDPersonal.gateway.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -9,10 +12,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 极简网关转发（多后端）。
@@ -42,9 +48,36 @@ import java.util.Collections;
  *
  * 说明：本类不会抢走 CaptchaController 的 /captcha。
  * 如果以后要接 spring-cloud-gateway，把本类删掉换成 routes 配置即可。
+ *
+ * <p>日志：前端所有请求都先经过这里，所以转发日志是排查问题的第一站。
+ * 每个请求会打三条日志（logger 名 cn.CDPersonal.gateway）：
+ * <pre>
+ * 收到请求  POST /auth/login -> http://localhost:8000/system/auth/login
+ * 下游响应  POST /auth/login 200 (52 ms) -> http://localhost:8000/system/auth/login? 等
+ * </pre>
+ * 另外会生成/透传 X-Trace-Id 给下游，配合 RequestLoggingFilter 的 MDC，
+ * 可以用同一个 traceId 把网关和下游服务的日志串起来。
  */
 @RestController
 public class ServiceForwardController {
+
+    private static final Logger log = LoggerFactory.getLogger(ServiceForwardController.class);
+
+    /** 链路追踪头：透传给下游，下游 RequestLoggingFilter 会读它放进 MDC */
+    private static final String TRACE_HEADER = "X-Trace-Id";
+
+    /**
+     * 逐跳（Hop-by-hop）请求头，按 RFC 7230 不允许被代理转发。
+     *
+     * Content-Length 也在里面：它由 RestClient 按实际 body 重算，
+     * 原样带过去会和新 body 长度不符，导致下游解析失败。
+     * Transfer-Encoding / Connection 原样转发还可能导致请求挂起。
+     */
+    private static final Set<String> HOP_BY_HOP_HEADERS = Set.of(
+            "host", "content-length", "connection", "keep-alive",
+            "transfer-encoding", "upgrade", "proxy-authenticate",
+            "proxy-authorization", "te", "trailer"
+    );
 
     /** system-service 地址，可用 gateway.forward.system-service 覆盖 */
     @Value("${gateway.forward.system-service:http://localhost:8000}")
@@ -71,15 +104,29 @@ public class ServiceForwardController {
         // 这样文件上传的字节流能原样透传给下游服务。
         byte[] payload = request.getInputStream().readAllBytes();
 
-        RestClient.RequestBodySpec spec = restClient.method(org.springframework.http.HttpMethod.valueOf(request.getMethod()))
+        String method = request.getMethod();
+        String traceId = resolveTraceId(request);
+        String displayPath = query == null ? path : path + "?" + query;
+
+        if (log.isDebugEnabled()) {
+            // 摘要日志：Body 不打印（登录请求含明文密码，日志要长期留存，打出来是泄密）
+            log.debug("转发 {} {} -> {} ({} 字节{}) [traceId={}]",
+                    method, displayPath, target, payload.length,
+                    payload.length > 0 ? ", " + describeContentType(request) : "",
+                    traceId);
+        }
+
+        RestClient.RequestBodySpec spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
                 .uri(URI.create(target))
                 .headers(headers -> {
                     Collections.list(request.getHeaderNames()).forEach(name -> {
-                        // Host / Content-Length 由客户端重算，转发会导致长度不匹配
-                        if (!"host".equalsIgnoreCase(name) && !"content-length".equalsIgnoreCase(name)) {
+                        // 逐跳头和长度头不能原样带过去，见 HOP_BY_HOP_HEADERS 注释
+                        if (!HOP_BY_HOP_HEADERS.contains(name.toLowerCase())) {
                             headers.add(name, request.getHeader(name));
                         }
                     });
+                    // 把 traceId 透传给下游，两边日志能对上
+                    headers.set(TRACE_HEADER, traceId);
                 });
 
         if (payload.length > 0) {
@@ -87,17 +134,51 @@ public class ServiceForwardController {
             spec.body(payload);
         }
 
-        return spec.exchange((req, res) -> {
-            byte[] responseBody = res.bodyTo(byte[].class);
-            HttpHeaders outHeaders = new HttpHeaders();
-            MediaType contentType = res.getHeaders().getContentType();
-            if (contentType != null) {
-                outHeaders.setContentType(contentType);
+        long start = System.currentTimeMillis();
+        try {
+            ResponseEntity<byte[]> result = spec.exchange((req, res) -> {
+                byte[] responseBody = res.bodyTo(byte[].class);
+                HttpHeaders outHeaders = new HttpHeaders();
+                MediaType contentType = res.getHeaders().getContentType();
+                if (contentType != null) {
+                    outHeaders.setContentType(contentType);
+                }
+                return ResponseEntity.status(res.getStatusCode())
+                        .headers(outHeaders)
+                        .body(responseBody);
+            });
+
+            long cost = System.currentTimeMillis() - start;
+            int status = result.getStatusCode().value();
+            int bodySize = result.getBody() == null ? 0 : result.getBody().length;
+
+            if (status >= 500) {
+                log.error("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
+                        status, displayPath, cost, bodySize, target, traceId);
+            } else if (status >= 400) {
+                log.warn("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
+                        status, displayPath, cost, bodySize, target, traceId);
+            } else {
+                log.info("下游返回 {} {} ({} ms, {} 字节) -> {} [traceId={}]",
+                        status, displayPath, cost, bodySize, target, traceId);
             }
-            return ResponseEntity.status(res.getStatusCode())
-                    .headers(outHeaders)
-                    .body(responseBody);
-        });
+            return result;
+
+        } catch (RestClientResponseException e) {
+            // RestClient 默认把 4xx/5xx 当异常抛，这里兜住并记下状态码，避免日志里只剩一句"异常"
+            long cost = System.currentTimeMillis() - start;
+            int status = e.getStatusCode().value();
+            log.error("下游报错 {} {} ({} ms) -> {} [traceId={}] : {}",
+                    status, displayPath, cost, target, traceId, e.getMessage());
+            throw e;
+
+        } catch (Exception e) {
+            // 连不上下游（服务没起 / 端口不通）：这是"登录报后端接口连接异常"最常见的原因
+            long cost = System.currentTimeMillis() - start;
+            log.error("转发失败 {} {} ({} ms) -> {} [traceId={}] : {}（下游服务是否已启动？）",
+                    method, displayPath, cost, target, traceId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
@@ -134,5 +215,27 @@ public class ServiceForwardController {
         } catch (Exception e) {
             return MediaType.APPLICATION_JSON;
         }
+    }
+
+    /** 日志里用：只描述 Content-Type，不碰真实 body */
+    private String describeContentType(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        return contentType == null ? "无 Content-Type" : contentType;
+    }
+
+    /**
+     * 沿用调用方带来的 X-Trace-Id；没有就生成一个。
+     * RequestLoggingFilter 也会做同样的事，这里读它放进 MDC 的值能保证两边一致。
+     */
+    private String resolveTraceId(HttpServletRequest request) {
+        String fromMdc = MDC.get("traceId");
+        if (fromMdc != null && !fromMdc.isBlank()) {
+            return fromMdc;
+        }
+        String header = request.getHeader(TRACE_HEADER);
+        if (header != null && !header.isBlank()) {
+            return header;
+        }
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 }

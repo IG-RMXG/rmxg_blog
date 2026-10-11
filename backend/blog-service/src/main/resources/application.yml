@@ -53,3 +53,21 @@ mybatis:
 blog:
   auth:
     token-expire-minutes: ${BLOG_TOKEN_EXPIRE_MINUTES:30}
+
+# =====================================================================
+# 日志配置
+#
+# 日志目录、按天切割、保留 30 天 这些都在 logback-spring.xml 里定义，
+# 该文件位于 common/core 模块（三个服务共用），不要在这里重复声明
+# logging.file.path，否则会和 logback 内部的仓库根推导打架。
+#
+# 落盘位置：仓库根/logs/blog-service.log（按天归档到 logs/history/）
+# 需要换目录时用启动参数覆盖：-Dlogging.file.path=D:/temp/logs
+# =====================================================================
+logging:
+  level:
+    root: info
+    # 业务包：打印接口进出参、Service 处理过程
+    cn.CDPersonal: debug
+    # 请求链路日志（RequestLoggingFilter），每一个 HTTP 请求都会有 --> / <-- 一对日志
+    cn.CDPersonal.request: debug

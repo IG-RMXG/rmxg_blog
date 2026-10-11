@@ -36,3 +36,24 @@ cd:
       - "png"
       - "webp"
 
+# =====================================================================
+# 日志配置
+#
+# 日志目录、按天切割、保留 30 天 都在 common/core 的 logback-spring.xml 里定义
+# （三个服务共用），这里只声明级别，不要重复写 logging.file.path。
+#
+# 落盘位置：仓库根/logs/gateway-service.log（按天归档到 logs/history/）
+# 需要换目录时用启动参数覆盖：-Dlogging.file.path=D:/temp/logs
+#
+# 网关是排查问题的第一站：前端所有请求都先到 8889，
+# 所以这里把转发日志（cn.CDPersonal.gateway）也开到 debug，
+# 能看到「请求打进来 -> 转发给哪个后端 -> 后端返回什么状态码 -> 耗时」。
+# =====================================================================
+logging:
+  level:
+    root: info
+    cn.CDPersonal: debug
+    cn.CDPersonal.request: debug
+    # 转发链路日志：ServiceForwardController
+    cn.CDPersonal.gateway: debug
+

@@ -37,3 +37,20 @@ spring:
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
+
+# =====================================================================
+# 日志配置
+#
+# 日志目录、按天切割、保留 30 天 都在 common/core 的 logback-spring.xml 里定义
+# （三个服务共用），这里只声明级别，不要重复写 logging.file.path。
+#
+# 落盘位置：仓库根/logs/system-service.log（按天归档到 logs/history/）
+# 需要换目录时用启动参数覆盖：-Dlogging.file.path=D:/temp/logs
+# =====================================================================
+logging:
+  level:
+    root: info
+    # 业务包：登录 / 鉴权 / 各模块 CRUD 的过程日志
+    cn.CDPersonal: debug
+    # 请求链路日志（RequestLoggingFilter）：每个请求一行 --> 和一行 <--
+    cn.CDPersonal.request: debug
