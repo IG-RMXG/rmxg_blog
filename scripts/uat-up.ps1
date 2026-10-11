@@ -72,13 +72,18 @@ function Start-Java($jar, $name) {
 
 Write-Host '==> 启动 UAT 服务...' -ForegroundColor Cyan
 $services = @(
-    @{ jar = 'system-service\target\system-service-1.0.jar'; name = 'system-service-8001' },
-    @{ jar = 'blog-service\target\blog-service-1.0.jar';     name = 'blog-service-8011' },
-    @{ jar = 'uat-service\target\uat-service-1.0.jar';       name = 'uat-service-8020' },
-    @{ jar = 'gateway-service\target\gateway-service-1.0.jar'; name = 'gateway-8890' }
+    @{ jar = 'system-service\target\system-service-1.0.jar'; name = 'system-service-8001'; port = 8001 },
+    @{ jar = 'blog-service\target\blog-service-1.0.jar';     name = 'blog-service-8011';   port = 8011 },
+    @{ jar = 'uat-service\target\uat-service-1.0.jar';       name = 'uat-service-8020';    port = 8020 },
+    @{ jar = 'gateway-service\target\gateway-service-1.0.jar'; name = 'gateway-8890';      port = 8890 }
 )
 $pids = @()
 foreach ($s in $services) {
+    # 端口已在监听 → 跳过启动（典型场景：你已在 IDEA 里跑着 UatApplication 等实例）
+    if (Get-NetTCPConnection -LocalPort $s.port -State Listen -ErrorAction SilentlyContinue) {
+        Write-Host ("  跳过 {0,-18} :{1} 已在监听（可能你已在 IDE 里启动）" -f $s.name, $s.port) -ForegroundColor Yellow
+        continue
+    }
     $pids += Start-Java (Join-Path $repo ("backend\" + $s.jar)) $s.name
 }
 $pids | Set-Content (Join-Path $logDir 'pids.txt')

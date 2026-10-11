@@ -202,10 +202,32 @@ java -jar uat-service/target/uat-service-1.0.jar
 6. **重新执行 `init-uat-db.ps1` 之后，必须重启 uat-service。** 该脚本是「删库 + 从 DEV 导种子」重建，而 DEV 库里并没有 `uat_admin`/`uat_user`（已实测），所以重建后这两个账号会消失；只有重启 uat-service 才会重新 ensure 出来。
 7. **Redis db 序号必须和 UAT 的 system-service / blog-service 一致（db1）。** 若不一致，假登录会成功返回 token，但任何接口都认不出它（表现为 401/500）——因为 token 读的是另一个 db。
 8. **token 有效期的两处配置必须一致。** 本服务只负责签发与续期，校验方是 system-service 的 `TokenService`；两边对不上会导致会话提前失效或续期异常。
+9. **整套四个服务缺一不可。** vite 的 `/uat-api` 代理指向 **网关 8890**，而假登录后前端立刻还要经网关调 `system-service(8001)` 的 `getInfo`/`getRouters` 和 `blog-service(8011)`：
+
+   ```
+   浏览器 :81
+     └─ /uat-api/**  （vite 代理 → :8890）
+          └─ 网关 :8890
+               ├─ /uat/**     → uat-service   :8020   假登录
+               ├─ /system/**  → system-service:8001   getInfo / getRouters
+               └─ /blog/**    → blog-service  :8011   文章列表
+   ```
+
+   只起 8020 就会在代理处报 `ECONNREFUSED`。**用 `scripts\uat-up.ps1` 一起起最省事**（它会自动跳过已占用的端口）。
+10. **在 IDEA 里跑 UAT 实例要配环境变量。** `uat-up.ps1` 是用环境变量把实例指向 UAT 库/Redis 的，IDE 里直接 Run 不会带上它们：
+
+    | 启动类 | 不配环境变量会怎样 |
+    |---|---|
+    | `UatApplication`（8020） | **没问题**：`application.yml` 的默认值本来就是 `ry-cloud-uat` + Redis db1 |
+    | `SystemApplication`（8001） | **会连到 DEV 库**：默认指向 `ry-cloud` + db0，必须手动配 `SYSTEM_PORT=8001`、`SYSTEM_DB_URL=...ry-cloud-uat...`、`SYSTEM_REDIS_DATABASE=1` |
+    | `BlogApplication`（8011） | 同上：需 `BLOG_PORT=8011`、`BLOG_DB_URL`、`BLOG_REDIS_DATABASE=1` |
+    | `GatewayApplication`（8890） | 需 `GATEWAY_PORT=8890` 及三个 `GATEWAY_*_SERVICE` 指向 8001/8011/8020 |
+
+    混用没问题（比如 uat-service 在 IDE 里跑、其余用脚本起），`uat-up.ps1` 与 `uat-down.ps1` 都已按端口占用/进程来源做了兼容。
 
 ### 跨服务契约（改代码时）
 
-9. 假登录的 token 之所以"真实可用"，是因为它写的 Redis 键与值与 system-service **完全同构**：
+11. 假登录的 token 之所以"真实可用"，是因为它写的 Redis 键与值与 system-service **完全同构**：
 
    | 项 | 值 |
    |---|---|
@@ -217,8 +239,9 @@ java -jar uat-service/target/uat-service-1.0.jar
 
 ### 维护提示
 
-10. `scripts/*.ps1` 必须存为 **UTF-8 带 BOM**。Windows PowerShell 5.1 会把无 BOM 的 UTF-8 当 GBK 解码，中文注释变乱码后**直接导致语法错误**（本项目已踩过两次）。
-11. 本服务不起 `ApplicationRunner` 之外的定时任务、不注册任何全局过滤器——保持"只做测试功能"的最小面。
+12. `scripts/*.ps1` 必须存为 **UTF-8 带 BOM**。Windows PowerShell 5.1 会把无 BOM 的 UTF-8 当 GBK 解码，中文注释变乱码后**直接导致语法错误**（本项目已踩过两次）。
+13. `uat-up.ps1` 会**跳过已监听的端口**，`uat-down.ps1` 会**识别并跳过 IDE 启动的进程**（只提示你去 IDE 停）——所以"部分服务在 IDE 里跑、部分用脚本起"这种混用是安全的。
+14. 本服务不起 `ApplicationRunner` 之外的定时任务、不注册任何全局过滤器——保持"只做测试功能"的最小面。
 
 ---
 
@@ -226,6 +249,7 @@ java -jar uat-service/target/uat-service-1.0.jar
 
 | 现象 | 原因与处理 |
 |---|---|
+| 前端控制台/vite 报 `AggregateError [ECONNREFUSED]`、`http proxy error: /uat/fake-login` | vite 的 `/uat-api` 代理目标是 **UAT 网关 8890**，它没启动。**只起 uat-service(8020) 不够**——假登录成功后前端立刻还要经网关调 8001 的 `getInfo`/`getRouters`，所以 8001/8011/8890 都得在。跑 `scripts\uat-up.ps1` 补齐即可（脚本会自动跳过已被占用的端口，例如你已在 IDEA 里跑的实例）。 |
 | `/uat/**` 返回 404 | ① 网关没配 `GATEWAY_UAT_SERVICE`（DEV 的正常表现）；② uat-service 没启动 |
 | `/uat/fake-login` 返回 500 `测试账号未就绪` | UAT 库没初始化，或重新 init 后没重启 uat-service → 看 `/uat/status` 的 `accounts` |
 | 假登录成功但接口仍 401/500 | Redis db 不一致：`UAT_REDIS_DATABASE` 与 UAT 的 `SYSTEM_REDIS_DATABASE` 必须相同（都应是 1） |
