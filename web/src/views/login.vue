@@ -58,6 +58,11 @@
         </div>
       </el-form-item>
     </el-form>
+
+    <!-- 博客门户入口：读者/普通用户从门户登录，管理员仍可用本页 -->
+    <div class="portal-entry" style="text-align: center; font-size: 13px; padding: 4px 0 14px;">
+      <router-link class="link-type" to="/portal/home">进入博客门户 →</router-link>
+    </div>
   </div>
 
   <el-dialog

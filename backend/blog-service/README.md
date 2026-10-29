@@ -46,6 +46,26 @@
 | PUT | `/blog/comment/status`、DELETE `/blog/comment/{commentIds}` | 仅管理员 |
 | POST | `/blog/upload` | 登录用户（图片上传，jpg/jpeg/png/gif/webp/bmp/svg，≤5MB） |
 
+### 门户只读接口（`/blog/public/**`，游客可访问）
+
+前端独立站 `/portal` 专用：**全部 GET、无需登录、只返回已发布内容**（`status='1'`），
+没有任务写操作，评论/写作仍走上面需要登录的接口。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/blog/public/site` | 站点信息：标题、副标题、博主、文章/分类/标签/评论/浏览量统计 |
+| GET | `/blog/public/articles` | 文章列表（分页）：`categoryId` / `tagId` / `keyword`（标题+摘要）/ `month`（`yyyy-MM`）/ `orderBy`（`latest`\|`hot`\|`comments`）/ `pageNum` / `pageSize` |
+| GET | `/blog/public/articles/{articleId}` | 文章详情（仅已发布，浏览量 +1） |
+| GET | `/blog/public/articles/{articleId}/comments` | 文章的评论（正常状态，按楼层正序） |
+| GET | `/blog/public/categories` | 有已发布文章的分类（含篇数） |
+| GET | `/blog/public/tags` | 有已发布文章的标签（含篇数） |
+| GET | `/blog/public/archive` | 归档（按月统计篇数） |
+| GET | `/blog/public/hot?limit=5` | 热门文章（按浏览量，limit 上限 20） |
+| GET | `/blog/public/comments/latest?limit=5` | 最新评论（侧栏用） |
+
+> 安全约定：所有条件都用 `#{}` 参数化，排序字段用 `<choose>` 白名单，不存在 `${}` 拼接；
+> 公开查询一律写死 `status='1'`，草稿/待审核文章不可能从门户泄漏。
+
 ## 数据表
 
 建表 + 菜单数据脚本：[`src/main/resources/sql/blog.sql`](src/main/resources/sql/blog.sql)
@@ -85,6 +105,8 @@
 | `BLOG_REDIS_PASSWORD` | 空 | Redis 密码 |
 | `BLOG_REDIS_DATABASE` | `0` | Redis 库序号 |
 | `BLOG_TOKEN_EXPIRE_MINUTES` | `30` | token 续期时长 |
+| `BLOG_PORTAL_TITLE` | `CDPersonal 的博客` | 门户站点标题（只影响展示） |
+| `BLOG_PORTAL_SUBTITLE` | `记录、思考与分享 —— 写代码，也写生活` | 门户副标题 |
 | `APP_UPLOAD_PATH` | 进程工作目录 `/uploads` | 上传根目录（也支持 `-Dapp.upload.path=`） |
 
 网关侧对应 `GATEWAY_BLOG_SERVICE`（默认 `http://localhost:8010`）。

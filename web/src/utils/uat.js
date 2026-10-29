@@ -16,8 +16,11 @@ export const isUat = import.meta.env.VITE_APP_ENV === 'uat'
  * 实现：调 /uat/fake-login 拿新 token 替换本地会话，
  * 然后整页跳转——让 permission 守卫用新 token 重新走 getInfo + generateRoutes，
  * 菜单/权限随角色整体重建，比局部刷新状态可靠得多。
+ *
+ * @param {'admin'|'user'} role 目标角色
+ * @param {string} target 登录后落地页：若依后台（默认 /index）或门户（/portal/home）
  */
-export function enterAs(role) {
+export function enterAs(role, target = '/index') {
   removeToken()
   return fakeLogin(role).then(res => {
     const data = res.data
@@ -25,7 +28,7 @@ export function enterAs(role) {
       throw new Error('假登录返回异常')
     }
     setToken(data.token)
-    window.location.href = window.location.origin + '/index'
+    window.location.href = window.location.origin + (target || '/index')
     return data
   })
 }

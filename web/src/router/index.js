@@ -83,7 +83,54 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
-  }
+  },
+  // ==================== 博客门户（/portal）====================
+  // 面向读者的独立站点：自带 layout（没有若依的侧边栏/标签页），游客可直接浏览。
+  // meta.portal 让 permission.js 走门户专用守卫分支；meta.requiresAuth 的页面
+  // （写作 / 我的文章）未登录时会被引导到 /portal/login。
+  {
+    path: '/portal',
+    component: () => import('@/portal/layout/index.vue'),
+    redirect: '/portal/home',
+    children: [
+      {
+        path: 'home',
+        name: 'PortalHome',
+        component: () => import('@/portal/views/home.vue'),
+        meta: { title: '首页', portal: true }
+      },
+      {
+        path: 'article/:articleId(\\d+)',
+        name: 'PortalArticle',
+        component: () => import('@/portal/views/article.vue'),
+        meta: { title: '文章详情', portal: true }
+      },
+      {
+        path: 'archive',
+        name: 'PortalArchive',
+        component: () => import('@/portal/views/archive.vue'),
+        meta: { title: '归档', portal: true }
+      },
+      {
+        path: 'write/:articleId(\\d+)?',
+        name: 'PortalWrite',
+        component: () => import('@/portal/views/write.vue'),
+        meta: { title: '写文章', portal: true, requiresAuth: true }
+      },
+      {
+        path: 'me',
+        name: 'PortalMe',
+        component: () => import('@/portal/views/me.vue'),
+        meta: { title: '我的文章', portal: true, requiresAuth: true }
+      }
+    ]
+  },
+  {
+    path: '/portal/login',
+    name: 'PortalLogin',
+    component: () => import('@/portal/views/login.vue'),
+    meta: { title: '登录', portal: true }
+  },
 ]
 
 // 动态路由，基于用户权限动态去加载

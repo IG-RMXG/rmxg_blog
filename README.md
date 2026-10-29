@@ -91,6 +91,28 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uat-down.ps1
 
 基座为 RuoYi-Vue3 3.6.6。
 
+### 博客门户 `web/src/portal/`（`/portal`）
+
+面向读者的独立站点，不是若依后台的一个菜单：
+
+- **入口**：`http://localhost:80/portal/home`（UAT 端口 81 同理），游客可直接浏览
+- **独立外观**：自带 `PortalLayout`（顶栏 / 内容 / 页脚），不套若依的侧边栏、标签页、面包屑
+- **独立登录页**：`/portal/login`，登录后回跳门户；管理员登录后仍可从顶栏「管理后台」进若依
+- **游客可读、写操作需登录**：列表 / 详情 / 评论 / 分类 / 标签 / 归档 / 搜索全部公开；
+  评论、写文章、我的文章需要登录，未登录会被引导到 `/portal/login?redirect=…`
+- **内容全部来自已发布文章**：草稿、待审核不会出现在门户（后端 `/blog/public/**` 写死 `status='1'`）
+
+| 路由 | 页面 |
+| --- | --- |
+| `/portal/home` | 首页：文章流、分类筛选、最新/热门/评论排序、搜索、分页 + 侧栏（博主卡 / 热门 / 分类 / 标签 / 最新评论） |
+| `/portal/article/:articleId` | 文章详情：Markdown 渲染 + 评论区（登录后可发评论） |
+| `/portal/archive` | 归档：按月统计，点月份看当月文章 |
+| `/portal/write`、`/portal/write/:articleId` | 写文章 / 编辑：Markdown 编辑器、封面、分类、标签、存草稿 / 提交审核（管理员可直接发布） |
+| `/portal/me` | 我的文章：按状态筛选、编辑、提交审核、删除、查看已发布文章 |
+| `/portal/login` | 独立登录窗口（UAT 模式下额外提供免密快捷进入） |
+
+站点标题与副标题来自后端配置：`BLOG_PORTAL_TITLE` / `BLOG_PORTAL_SUBTITLE`（见 `backend/blog-service/README.md`）。
+
 ### 基础设施
 
 `backend/docker-compose.yml` 提供本地依赖：
