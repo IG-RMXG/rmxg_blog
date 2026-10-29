@@ -113,6 +113,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uat-down.ps1
 
 站点标题与副标题来自后端配置：`BLOG_PORTAL_TITLE` / `BLOG_PORTAL_SUBTITLE`（见 `backend/blog-service/README.md`）。
 
+详细文档：[门户技术说明](docs/portal/README.md) · [操作手册](docs/portal/操作手册.md)
+
 ### 基础设施
 
 `backend/docker-compose.yml` 提供本地依赖：
