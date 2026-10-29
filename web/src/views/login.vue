@@ -142,6 +142,9 @@ function uatEnter(role) {
   uatLoading.value = role
   enterAs(role).catch((e) => {
     uatLoading.value = ''
+    // handled=true：request.js 拦截器已给出可操作提示（如“网关 8890 未启动”），
+    // 这里不要再补一条原始的 “Request failed with status code 500”。
+    if (e && e.handled) return
     ElMessage.error((e && e.message) || 'UAT 快捷进入失败，请确认 UAT 后端已启动')
   })
   // 成功时 enterAs 整页跳转，无需复位

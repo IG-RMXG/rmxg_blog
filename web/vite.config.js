@@ -8,6 +8,19 @@ export default defineConfig(({ mode, command }) => {
   const { VITE_APP_ENV } = env
   // 上传图片回源：UAT 前端走 UAT 网关（图片落在 UAT blog-service 的 uploads 目录）
   const profileTarget = mode === 'uat' ? 'http://localhost:8890' : 'http://localhost:8889'
+  // 代理目标没起时，vite 默认只打一行 AggregateError/ECONNREFUSED，
+  // 很容易被当成“后端接口报错”去查代码。这里在 dev 终端补一句人话 + 修复命令。
+  // 只对 UAT 模式的 8890 生效，避免干扰 DEV 的 8889。
+  const uatProxyErrorHint = (prefix) => ({
+    configure: (proxy) => {
+      proxy.on('error', (err) => {
+        if (mode !== 'uat') return
+        console.error(`\n[vite] ${prefix} 代理到 UAT 网关 http://localhost:8890 失败：${err.code || err.message}`)
+        console.error('[vite] UAT 后端没起？在仓库根目录执行：')
+        console.error('[vite]   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\uat-up.ps1 -SkipBuild\n')
+      })
+    }
+  })
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -57,12 +70,14 @@ export default defineConfig(({ mode, command }) => {
         '/uat-api': {
           target: 'http://localhost:8890',
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/uat-api/, '')
+          rewrite: (p) => p.replace(/^\/uat-api/, ''),
+          ...uatProxyErrorHint('/uat-api')
         },
         // 上传文件静态资源（头像/博客图片）：UAT 模式回源 UAT 网关
         '/profile': {
           target: profileTarget,
-          changeOrigin: true
+          changeOrigin: true,
+          ...uatProxyErrorHint('/profile')
         }
       }
     },

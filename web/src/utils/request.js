@@ -11,6 +11,11 @@ let downloadLoadingInstance
 // 是否显示重新登录
 export let isRelogin = { show: false }
 
+// UAT 模式判定。这里不复用 @/utils/uat 的 isUat：uat.js 会 import @/api/uat，
+// 而 api/uat 又 import 本文件，形成 request → uat → api/uat → request 的循环依赖。
+// VITE_APP_ENV 是构建期静态替换的常量，直接读即可，效果等同。
+const isUatMode = import.meta.env.VITE_APP_ENV === 'uat'
+
 axios.defaults.headers['Content-Type'] = 'application/json;charset=utf-8'
 // 创建axios实例
 const service = axios.create({
@@ -110,14 +115,30 @@ service.interceptors.response.use(res => {
   error => {
     console.log('err' + error)
     let { message } = error
-    if (message == "Network Error") {
+    const status = error.response && error.response.status
+    const body = error.response && error.response.data
+    // UAT 模式下最常见的一种“500”其实是 vite 代理层的错误：
+    // /uat-api 连不上 UAT 网关 8890（服务没起）时，代理直接回 500 且 body 为空，
+    // 而真正的后端业务 500 一定带 {code,msg} JSON。两者必须分开，
+    // 否则用户看到的是误导性的“系统接口500异常”，会去查后端代码。
+    const isProxyError = isUatMode &&
+      [500, 502, 503, 504].indexOf(status) !== -1 &&
+      !(body && typeof body === 'object' && (body.msg || body.message))
+    if (isProxyError) {
+      message = 'UAT 后端服务未启动（网关 :8890 无响应），请先执行 scripts\\uat-up.ps1 -SkipBuild'
+    } else if (message == "Network Error") {
       message = "后端接口连接异常"
     } else if (message.includes("timeout")) {
       message = "系统接口请求超时"
     } else if (message.includes("Request failed with status code")) {
       message = "系统接口" + message.substr(message.length - 3) + "异常"
     }
-    ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
+    ElMessage({ message: message, type: 'error', duration: (isProxyError ? 8 : 5) * 1000, showClose: isProxyError })
+    // handled=true 表示提示语已由拦截器给出（且是改写后的可操作文案），
+    // 调用方（如登录页 UAT 快捷进入）不要再用原始 axios 报错重复弹一次。
+    if (isProxyError) {
+      return Promise.reject(Object.assign(new Error(message), { handled: true }))
+    }
     return Promise.reject(error)
   }
 )

@@ -250,6 +250,7 @@ java -jar uat-service/target/uat-service-1.0.jar
 | 现象 | 原因与处理 |
 |---|---|
 | 前端控制台/vite 报 `AggregateError [ECONNREFUSED]`、`http proxy error: /uat/fake-login` | vite 的 `/uat-api` 代理目标是 **UAT 网关 8890**，它没启动。**只起 uat-service(8020) 不够**——假登录成功后前端立刻还要经网关调 8001 的 `getInfo`/`getRouters`，所以 8001/8011/8890 都得在。跑 `scripts\uat-up.ps1` 补齐即可（脚本会自动跳过已被占用的端口，例如你已在 IDEA 里跑的实例）。 |
+| 点「UAT 快捷进入」弹 **「系统接口500异常」**（或假登录 500），但 `curl :8020/uat/fake-login` 却是 200 | 这个 500 **来自 vite 代理层，不是假登录接口**：`/uat-api` → 8890 连不上时 vite 回一个 **body 为空的 500**，前端兜底文案就成了「系统接口500异常」。排查顺序：① `scripts\dev-status.ps1` 看 `gateway(UAT) :8890` 是否在听；② `curl http://127.0.0.1:8890/uat/status` 应返回 `db/redis/accounts`；③ 8890/8001/8011 没起就跑 `scripts\uat-up.ps1 -SkipBuild`。**典型诱因**：机器/IDEA 重启——`uat-service` 在 IDE 里会跟着 IDE 起来，而 `uat-up.ps1` 用 jar 起的 8001/8011/8890 不会自启。前端已对此加友好提示（UAT 模式 + 500/502/503/504 且 body 无 `{code,msg}` 时，直接提示「UAT 后端服务未启动」并给出命令），vite 终端也会打印同样的提示。 |
 | `/uat/**` 返回 404 | ① 网关没配 `GATEWAY_UAT_SERVICE`（DEV 的正常表现）；② uat-service 没启动 |
 | `/uat/fake-login` 返回 500 `测试账号未就绪` | UAT 库没初始化，或重新 init 后没重启 uat-service → 看 `/uat/status` 的 `accounts` |
 | 假登录成功但接口仍 401/500 | Redis db 不一致：`UAT_REDIS_DATABASE` 与 UAT 的 `SYSTEM_REDIS_DATABASE` 必须相同（都应是 1） |
