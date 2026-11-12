@@ -8,67 +8,78 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * 鍗氬鏂囩珷 blog_article
+ * 博客文章 blog_article。
  *
- * 闈炴暟鎹簱鍒楋紙鍙鍥炴樉锛夛細
- *   - categoryName锛氭墍灞炲垎绫诲悕绉帮紙LEFT JOIN blog_category锛? *   - tagNames    锛氶€楀彿鍒嗛殧鐨勬爣绛惧悕锛堝瓙鏌ヨ GROUP_CONCAT锛屽垪琛ㄥ睍绀猴級
- *   - tagIds      锛氳鏂囩珷宸查€夋爣绛?id锛堢紪杈戝洖鏄撅級
- *   - authorNickName锛氫綔鑰呮樀绉帮紙LEFT JOIN sys_user锛屽垪琛ㄥ睍绀猴級
+ * <p>状态机：0=草稿 1=已发布 2=待审核 3=已驳回；普通用户只能保存草稿或提交审核，
+ * 管理员可任意切换（见 BlogArticleService）。publishTime 在转为已发布时写入，其它状态清空。</p>
+ *
+ * <p>以下字段不是数据库列，由 Mapper 联表/子查询填充，仅用于列表与编辑回显：</p>
+ * <ul>
+ *   <li>categoryName：所属分类名称（LEFT JOIN blog_category）</li>
+ *   <li>tagNames：逗号分隔的标签名（子查询 GROUP_CONCAT）</li>
+ *   <li>tagIds：该文章已选标签 id（编辑回显）</li>
+ *   <li>authorNickName：作者昵称（LEFT JOIN sys_user）</li>
+ * </ul>
  */
 public class BlogArticle extends BaseEntity {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 鏂囩珷ID */
+    /** 文章ID（主键，自增） */
     private Long articleId;
 
-    /** 鏂囩珷鏍囬 */
+    /** 文章标题 */
     private String title;
 
-    /** 鎽樿 */
+    /** 摘要（列表与门户卡片展示，可为空） */
     private String summary;
 
-    /** 姝ｆ枃锛圡arkdown 婧愮爜锛?*/
+    /** 正文（Markdown 源码） */
     private String content;
 
-    /** 灏侀潰鍦板潃 */
+    /** 封面地址（为空时门户使用默认渐变封面） */
     private String coverUrl;
 
-    /** 鍒嗙被ID */
+    /** 分类ID（关联 blog_category.category_id，可为空） */
     private Long categoryId;
 
-    /** 鐘舵€侊細0鑽夌 1宸插彂甯?2寰呭鏍?3宸查┏鍥?*/
+    /** 状态：0草稿 1已发布 2待审核 3已驳回 */
     private String status;
 
-    /** 鏄惁缃《锛?鍚?1鏄?*/
+    /** 是否置顶：0否 1是（仅管理员可改） */
     private String isTop;
 
-    /** 鏄惁鎺ㄨ崘锛?鍚?1鏄?*/
+    /** 是否推荐：0否 1是（仅管理员可改） */
     private String isRecommend;
 
-    /** 娴忚閲?*/
+    /** 浏览量（仅浏览详情接口会 +1） */
     private Integer viewCount;
 
-    /** 鐐硅禐鏁?*/
+    /** 点赞数 */
     private Integer likeCount;
 
-    /** 璇勮鏁?*/
+    /** 评论数（评论新增/删除时同步维护） */
     private Integer commentCount;
 
-    /** 浣滆€呯敤鎴稩D锛坰ys_user.user_id锛?*/
+    /** 作者用户ID（sys_user.user_id） */
     private Long userId;
 
-    /** 鍙戝竷鏃堕棿 */
+    /** 发布时间（转为已发布时写入，其它状态清空） */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date publishTime;
 
-    // ==================== 闈炴暟鎹簱鍒?====================
+    // ==================== 非数据库列（只读回显） ====================
 
+    /** 所属分类名称（联表回显，非表字段） */
     private String categoryName;
+    /** 标签名，逗号分隔（聚合回显，非表字段） */
     private String tagNames;
+    /** 作者昵称（联表回显，非表字段） */
     private String authorNickName;
+    /** 已选标签ID集合（编辑回显，非表字段） */
     private Long[] tagIds;
+    /** 标签对象列表（详情回显，非表字段） */
     private List<BlogTag> tags;
 
     public Long getArticleId() {

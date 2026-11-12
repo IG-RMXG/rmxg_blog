@@ -1,6 +1,7 @@
 <template>
 	<div class="popup-result">
 		<p class="title">最近5次运行时间</p>
+		<!-- 结果列表：最多 5 条；不足 5 条时会追加一行说明，isShow 为 false 时显示占位文案 -->
 		<ul class="popup-result-scroll">
 			<template v-if='isShow'>
 				<li v-for='item in resultList' :key="item">{{item}}</li>
@@ -11,18 +12,29 @@
 </template>
 
 <script setup>
+// 按 7 位 Quartz 表达式推算「最近 5 次运行时间」，纯前端穷举、不请求后端，结果仅用于预览。
+// 支持 * ? 区间(-) 步长(/) 枚举(,) 以及 L / W / # 等常见写法；超出支持范围的表达式会落入兜底，勿当作精确调度结果。
 const props = defineProps({
     ex: {
         type: String,
         default: ''
     }
 })
+// 日字段的「附加规则」形态：workDay(nW) / lastDay(L) / lastWeek(nL) / weekDay(指定星期) / assWeek(n#d)
+// dayRuleSup 存放对应规则用到的数值或数值数组，含义随 dayRule 变化
 const dayRule = ref('')
 const dayRuleSup = ref('')
+// 候选值数组，下标约定与表达式字段顺序一致：[0]=秒 [1]=分 [2]=时 [3]=日 [4]=月 [5]=年
+// 各 getXxxArr 直接写入该数组，属于副作用式写法，调用顺序不能颠倒（日与周会互相覆盖下标 3）
 const dateArr = ref([])
 const resultList = ref([])
+// 计算过程中隐藏结果，避免大范围穷举时旧结果与新结果混显
 const isShow = ref(false)
+// 表达式变化即重算；父组件每次改动任一字段都会传入新的 ex
 watch(() => props.ex, () => expressionChange())
+// 主计算流程：先按各字段规则把「候选值」写进 dateArr，再从当前时间所在下标开始多层嵌套穷举，
+// 逐级进位（年→月→日→时→分→秒），凑满 5 条即跳出；找不到结果时给一句提示文案。
+// 计算是同步的且最坏要扫 100 年，所以用 isShow 先遮住结果区。
 // 表达式值变化时，开始去计算结果
 function expressionChange() {
     // 计算开始-隐藏结果
@@ -328,6 +340,8 @@ function expressionChange() {
     // 计算完成-显示结果
     isShow.value = true
 }
+// 把当前时间值映射为候选数组的起始下标：小于等于首元素、或超过末元素时都从 0 开始；
+// 否则返回「第一个大于当前值」的位置，即下一次可能命中的候选档位
 // 用于计算某位数字在数组中的索引
 function getIndex(arr, value) {
     if (value <= arr[0] || value > arr[arr.length - 1]) {
@@ -340,6 +354,7 @@ function getIndex(arr, value) {
         }
     }
 }
+// 年字段在 6 位表达式中不存在（rule 为 undefined），此时按「当前年起 100 年」全量展开
 // 获取"年"数组
 function getYearArr(rule, year) {
     dateArr.value[5] = getOrderArr(year, year + 100)
@@ -364,6 +379,8 @@ function getMonthArr(rule) {
         dateArr.value[4] = getAssignArr(rule)
     }
 }
+// 周的写法要换算成「具体日期」才能穷举：区间/枚举 → 指定星期几，n#d → 第 n 周的星期 d，
+// dL → 本月最后一个星期 d。只有日字段为 ?（没有自己的日期规则）时才生效，不会覆盖已识别的日规则。
 // 获取"日"数组-主要为日期规则
 function getWeekArr(rule) {
     // 只有当日期规则的两个值均为“”时则表达日期是有选项的
@@ -469,6 +486,7 @@ function getAssignArr(rule) {
     arr.sort(compare)
     return arr
 }
+// limit 是该字段的取值上界（秒/分为 59，时为 23），从起点按 step 累加直到越界
 // 根据一定算术规则计算返回一个数组
 function getAverageArr(rule, limit) {
     let arr = []
@@ -481,6 +499,8 @@ function getAverageArr(rule, limit) {
     }
     return arr
 }
+// status=false 表示该字段从 1 开始计数（日/月/周），取模为 0 时补一个周期长度；
+// min>max 视为跨周期写法（如 23-2 时），先加一个周期长度再展开，保证区间回绕后仍连续
 // 根据规则返回一个具有周期性的数组
 function getCycleArr(rule, limit, status) {
     // status--表示是否从0开始（则从1开始）
@@ -501,6 +521,7 @@ function getCycleArr(rule, limit, status) {
     arr.sort(compare)
     return arr
 }
+// 升序比较器，仅供 Array.sort 使用；两值相等时也返回 1，相等元素的先后依赖引擎实现
 // 比较数字大小（用于Array.sort）
 function compare(value1, value2) {
     if (value2 - value1 > 0) {
@@ -509,6 +530,7 @@ function compare(value1, value2) {
         return 1
     }
 }
+// type 省略时返回 "YYYY-MM-DD HH:mm:ss"；type='week' 时返回 Quartz 周序号（JS 的 0=周日 需要 +1）
 // 格式化日期格式如：2017-9-19 18:04:33
 function formatDate(value, type) {
     // 计算日期相关值
@@ -528,12 +550,14 @@ function formatDate(value, type) {
         return week + 1
     }
 }
+// 用「回格式化后是否与原串一致」判断日期是否存在：如 2023-02-30 会被 Date 自动滚到 3 月 2 日，比对即失败
 // 检查日期是否存在
 function checkDate(value) {
     let time = new Date(value)
     let format = formatDate(time)
     return value === format
 }
+// watch 未设置 immediate，首次进入弹层时靠这里主动算一次
 onMounted(() => {
     expressionChange()
 })

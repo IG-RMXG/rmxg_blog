@@ -14,6 +14,8 @@ import java.util.List;
  *
  * 两块业务合并在一个 service 里，因为它们耦合紧密：
  * 类型改名要同步数据里的 dict_type 冗余列，删类型前要检查是否还有数据。
+ *
+ * 没有字典缓存：查询每次都直接落库，前端调的 refreshCache 只是兼容用的空实现。
  */
 @Service
 public class SysDictService {
@@ -71,6 +73,7 @@ public class SysDictService {
         return type != null && dataMapper.countDictDataByType(type.getDictType()) > 0;
     }
 
+    /** 批量删除类型；是否仍被字典数据引用由 controller 逐条校验，这里不再拦截 */
     @Transactional
     public int deleteTypeByIds(Long[] dictIds) {
         return typeMapper.deleteDictTypeByIds(dictIds);
@@ -86,6 +89,7 @@ public class SysDictService {
         return dataMapper.selectDictDataById(dictCode);
     }
 
+    /** 按类型取字典项：mapper 里已限定 status='0'，停用项不会下发 */
     public List<SysDictData> selectDataByType(String dictType) {
         return dataMapper.selectDictDataByType(dictType);
     }

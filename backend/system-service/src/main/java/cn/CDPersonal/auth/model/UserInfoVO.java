@@ -21,8 +21,11 @@ public class UserInfoVO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** 登录用户基础信息；交给前端前密码字段必须为 null */
     private UserInfo user;
+    /** 角色标识集合（role_key，如 admin/common），不是角色显示名 */
     private List<String> roles;
+    /** 权限标识集合（sys_menu.perms），前端 v-hasPermi 指令按它判断 */
     private List<String> permissions;
     private Boolean isDefaultModifyPwd;
     private Boolean isPasswordExpired;

@@ -7,6 +7,12 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
+/**
+ * 菜单查询 Mapper（注解式 SQL，无 XML）。
+ *
+ * 约定：路由类查询只取 status='0' 且 menu_type IN ('M','C') 的记录——按钮类型 F 只作权限点，
+ * 不进路由；排序固定 parent_id, order_num，保证前端建树后同级顺序稳定。
+ */
 @Mapper
 public interface SysMenuMapper {
 

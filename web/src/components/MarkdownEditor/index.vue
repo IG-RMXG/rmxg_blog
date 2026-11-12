@@ -19,6 +19,13 @@
 </template>
 
 <script setup>
+/**
+ * Markdown 编辑器组件（md-editor-v3 封装，仅负责"编辑"这一层）
+ * - 受控：modelValue 为 markdown 原文，内部用 getter/setter 的 computed 代理，不保留本地副本
+ * - 主题/工具栏/页脚统一取自 @/utils/md-editor，与 MarkdownViewer 共用同一套配置，避免两端渲染效果不一致
+ * - 图片上传走 /blog/upload（Bearer token），成功后由 md-editor 回填 markdown 图片语法
+ * - 通过 defineExpose 暴露预览/全屏/目录切换，供父组件工具栏按钮调用
+ */
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import 'md-editor-v3/lib/preview.css'
@@ -38,6 +45,7 @@ const emit = defineEmits(['update:modelValue'])
 const { proxy } = getCurrentInstance()
 const editorRef = ref()
 
+// 双向绑定的唯一数据源是父组件的 modelValue：父级传入空值或缺省时统一兜底为 ''，不把 undefined 传给 MdEditor
 const content = computed({
   get: () => props.modelValue || '',
   set: (v) => emit('update:modelValue', v)
@@ -48,6 +56,7 @@ async function onUploadImg(files, callback) {
   const urls = []
   proxy.$modal.loading('正在上传图片…')
   try {
+    // 逐个串行上传：任一文件请求异常会跳到外层 catch 整批提示失败，已成功的地址不再回填
     for (const file of files) {
       const fd = new FormData()
       fd.append('file', file)
@@ -60,6 +69,7 @@ async function onUploadImg(files, callback) {
         urls.push(res.data.data.url)
       }
     }
+    // callback 只在拿到 url 数组后调用一次，md-editor 用返回值生成 markdown 图片语法
     callback(urls)
   } catch (e) {
     proxy.$modal.msgError('图片上传失败')

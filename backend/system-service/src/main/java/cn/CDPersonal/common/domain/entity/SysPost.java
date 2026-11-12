@@ -15,10 +15,13 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public class SysPost extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // sys_post 没有 del_flag，删除是物理删除；已分配给用户的岗位由 controller 先用 hasUserPostByIds 拦截。
+
     /** 岗位 id */
     @Excel(name = "岗位序号", cellType = Excel.ColumnType.NUMERIC)
     private Long postId;
 
+    // 岗位编码与岗位名称分别做唯一性校验（checkPostCodeUnique / checkPostNameUnique），修改时都需排除自身 id
     /** 岗位编码 */
     @Excel(name = "岗位编码")
     @NotBlank(message = "岗位编码不能为空")
@@ -31,6 +34,7 @@ public class SysPost extends BaseEntity {
     @Size(min = 0, max = 50, message = "岗位名称长度不能超过50个字符")
     private String postName;
 
+    // 列表按 post_sort 升序（ORDER BY post_sort ASC）；值相同时顺序由数据库决定，需要稳定顺序应保证排序值唯一
     /** 显示顺序 */
     @Excel(name = "岗位排序", cellType = Excel.ColumnType.NUMERIC)
     @NotNull(message = "岗位顺序不能为空")

@@ -25,6 +25,7 @@ public class PortalSiteInfo {
     private int categoryCount;
     private int tagCount;
     private int commentCount;
+    /** 全部已发布文章的浏览量之和：用 long 接收 SUM，避免文章量大或计数虚高时 int 溢出 */
     private long viewCount;
 
     public String getTitle() {

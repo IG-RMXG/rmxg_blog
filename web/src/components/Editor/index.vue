@@ -1,5 +1,6 @@
 <template>
   <div>
+    <!-- 隐藏的上传宿主：仅 type=url 时渲染；工具栏"图片"按钮通过 uploadRef 触发其内部 i 元素的 click -->
     <el-upload
       :action="uploadUrl"
       :before-upload="handleBeforeUpload"
@@ -14,6 +15,7 @@
       <i ref="uploadRef" class="editor-img-uploader"></i>
     </el-upload>
   </div>
+  <!-- 富文本编辑区：v-model:content 双向绑定 HTML 字符串，内容变化时再对外 emit update:modelValue -->
   <div class="editor">
     <quill-editor
       ref="quillEditorRef"
@@ -27,6 +29,13 @@
 </template>
 
 <script setup>
+/**
+ * 富文本编辑器组件（基于 @vueup/vue-quill，Quill 2）
+ * - 受控：v-model（modelValue）为 HTML 字符串；编辑后通过 @textChange 回写
+ * - type="url"（默认）：图片先上传到 VITE_APP_BASE_API + /file/upload，再把返回的地址插入正文；
+ *   type 取其他值时退回 Quill 默认行为（图片以 base64 内联到 HTML）
+ * - 后端契约：上传成功返回 { code, msg, data: { url } }，code == 200 才算成功
+ */
 import axios from 'axios'
 import { QuillEditor } from "@vueup/vue-quill"
 import "@vueup/vue-quill/dist/vue-quill.snow.css"
@@ -72,6 +81,7 @@ const props = defineProps({
   }
 })
 
+// 工具栏与主题配置；bounds 指向 body，避免工具栏/浮层在弹窗等有 overflow 的容器里被裁切
 const options = ref({
   theme: "snow",
   bounds: document.body,
@@ -95,6 +105,7 @@ const options = ref({
   readOnly: props.readOnly
 })
 
+// 高度换算成内联样式：props 传的是数字（px），minHeight 与 height 可分别设置
 const styles = computed(() => {
   let style = {}
   if (props.minHeight) {
@@ -106,6 +117,8 @@ const styles = computed(() => {
   return style
 })
 
+// 外部内容 → 编辑器：先比对值再赋值，避免把用户正在输入的内容用旧值覆盖（防抖/循环回写）；
+// 空值统一补成 <p></p>，否则 Quill 会拿到 null 导致工具栏与光标状态异常
 const content = ref("")
 watch(() => props.modelValue, (v) => {
   if (v !== content.value) {
@@ -114,6 +127,8 @@ watch(() => props.modelValue, (v) => {
 }, { immediate: true })
 
 // 如果设置了上传地址则自定义图片上传事件
+// type=url 时接管图片插入：把工具栏的"图片"按钮改造成触发隐藏的上传控件，而不是弹出地址输入框；
+// 同时在 Quill 根节点的捕获阶段挂粘贴监听，抢在编辑器把截图写成 base64 之前拦下来走上传
 onMounted(() => {
   if (props.type == 'url') {
     let quill = quillEditorRef.value.getQuill()
@@ -130,6 +145,7 @@ onMounted(() => {
 })
 
 // 上传前校检格式和大小
+// 仅允许位图与 SVG：校验不通过返回 false 阻断上传，通过时返回 true 交由 el-upload 继续
 function handleBeforeUpload(file) {
   const type = ["image/jpeg", "image/jpg", "image/png", "image/svg"]
   const isJPG = type.includes(file.type)
@@ -150,6 +166,7 @@ function handleBeforeUpload(file) {
 }
 
 // 上传成功处理
+// 把图片插入到当前光标处；toRaw 用于从响应式代理还原真实的 Quill 实例
 function handleUploadSuccess(res, file) {
   // 如果上传成功
   if (res.code == 200) {
@@ -172,6 +189,8 @@ function handleUploadError() {
 }
 
 // 复制粘贴图片处理
+// 只拦截剪贴板里的 image 项，文本粘贴保持原样；命中图片时必须 preventDefault，
+// 否则 Quill 会把图片以 base64 直接塞进正文
 function handlePasteCapture(e) {
   const clipboard = e.clipboardData || window.clipboardData
   if (clipboard && clipboard.items) {
@@ -186,6 +205,7 @@ function handlePasteCapture(e) {
   }
 }
 
+// 粘贴图片走 axios 直传（不经过 el-upload 控件），请求成功后复用 handleUploadSuccess 插入正文
 function insertImage(file) {
   const formData = new FormData()
   formData.append("file", file)
@@ -196,6 +216,7 @@ function insertImage(file) {
 </script>
 
 <style>
+/* 隐藏上传宿主，只把它当作图片按钮的触发入口 */
 .editor-img-uploader {
   display: none;
 }
@@ -206,6 +227,8 @@ function insertImage(file) {
 .quill-img {
   display: none;
 }
+/* 以下整段是 Quill 默认英文文案的中文化：用 ::before 的 content 覆盖链接/视频提示，
+   以及字号、标题、字体三个下拉项的显示文字 */
 .ql-snow .ql-tooltip[data-mode="link"]::before {
   content: "请输入链接地址:";
 }

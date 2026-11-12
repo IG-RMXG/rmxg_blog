@@ -15,15 +15,22 @@
 #
 # 前置条件：先跑过 scripts\init-uat-db.ps1 初始化 ry-cloud-uat 库。
 # =====================================================================
+
+# -SkipBuild：跳过 mvn install，直接复用 backend 各模块 target 下已有的 jar；
+# 改过 Java 代码或从未构建过时不要加，否则启动的是旧包。
 param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
 
+# $repo 由脚本所在目录（scripts）上推一级得到，因此不依赖当前工作目录；
+# java/mvn 写死本机绝对路径，换机器或升级版本时要同步修改。
 $repo = Split-Path -Parent $PSScriptRoot
 $java = 'D:\Program\Environment\JDK\Jdk17\bin\java.exe'
 $mvn  = 'D:\Program\Environment\Maven\apache-maven-3.6.3\bin\mvn.cmd'
 
 # ---- 统一的环境变量（UAT 与 DEV 隔离的全部秘密就在这几行）----
+# 三个后端共用同一个 UAT 库与 Redis db1；DEV 默认连 ry-cloud + Redis db0，
+# 所以两套环境能同时常驻。端口也全部避开 DEV 的 8000/8010/8889。
 $env:SYSTEM_PORT         = '8001'
 $env:SYSTEM_DB_URL       = 'jdbc:mysql://localhost:3306/ry-cloud-uat?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true'
 $env:SYSTEM_REDIS_DATABASE = '1'
@@ -54,6 +61,8 @@ $logDir = Join-Path $repo 'logs\uat'
 New-Item -ItemType Directory -Force $logDir | Out-Null
 $workDir = Join-Path $repo 'backend'   # 日志统一落 仓库根/logs（logback 相对 user.dir）
 
+# 启动单个 jar，stdout/stderr 合并写入 logs\uat\<name>.out.log；
+# 返回的是 cmd 进程 PID（不是 java 的 PID），停服务时按端口找真实进程。
 function Start-Java($jar, $name) {
     $out = Join-Path $logDir "$name.out.log"
     # 本机 Start-Process 会因 NO_PROXY/no_proxy 环境变量大小写冲突抛错，
@@ -71,6 +80,8 @@ function Start-Java($jar, $name) {
 }
 
 Write-Host '==> 启动 UAT 服务...' -ForegroundColor Cyan
+# jar 路径相对 backend/；port 必须与上方环境变量一致，否则服务会起在别的端口，
+# 后面的就绪检查就会误判为"未就绪"。
 $services = @(
     @{ jar = 'system-service\target\system-service-1.0.jar'; name = 'system-service-8001'; port = 8001 },
     @{ jar = 'blog-service\target\blog-service-1.0.jar';     name = 'blog-service-8011';   port = 8011 },
@@ -86,9 +97,11 @@ foreach ($s in $services) {
     }
     $pids += Start-Java (Join-Path $repo ("backend\" + $s.jar)) $s.name
 }
+# 仅记录本次真正拉起的 cmd PID（被跳过的端口不在其中），供排查与手工清理。
 $pids | Set-Content (Join-Path $logDir 'pids.txt')
 
 # ---- 等待就绪 ----
+# 轮询等待端口进入 Listen；默认 90 秒（覆盖 Spring Boot 冷启动），超时返回 $false。
 function Wait-Port($port, $name, $timeoutSec = 90) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     while ((Get-Date) -lt $deadline) {
@@ -100,6 +113,7 @@ function Wait-Port($port, $name, $timeoutSec = 90) {
 
 Write-Host ''
 Write-Host '==> 等待端口就绪...' -ForegroundColor Cyan
+# 端口 Listen 只说明进程起来了，不代表 Spring 上下文健康（业务自检见下方 /uat/status）。
 $allOk = $true
 foreach ($pair in @(@(8001,'system-service'), @(8011,'blog-service'), @(8020,'uat-service'), @(8890,'gateway'))) {
     $ok = Wait-Port $pair[0] $pair[1]

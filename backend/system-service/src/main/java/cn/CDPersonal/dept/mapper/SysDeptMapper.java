@@ -60,6 +60,10 @@ public interface SysDeptMapper {
             """)
     List<SysDept> selectDeptListExcludeChildren(@Param("deptId") Long deptId);
 
+    /**
+     * 按 id 查单个部门，不过滤 del_flag（已软删的也能查到）。
+     * 祖先链推导和"上级部门合法性"校验需要读到历史节点，所以这里不能加 del_flag 条件。
+     */
     @Select("""
             SELECT d.dept_id, d.parent_id, d.ancestors, d.dept_name, d.order_num,
                    d.leader, d.phone, d.email, d.status, d.del_flag,
@@ -79,6 +83,7 @@ public interface SysDeptMapper {
     @Select("SELECT COUNT(*) FROM sys_user WHERE dept_id = #{deptId} AND del_flag = '0'")
     int countUserByDeptId(@Param("deptId") Long deptId);
 
+    /** 新增部门：del_flag 固定写 '0'，create_time 用数据库 NOW()，自增主键回填到 deptId */
     @Insert("""
             INSERT INTO sys_dept
               (parent_id, ancestors, dept_name, order_num, leader, phone, email,

@@ -25,6 +25,8 @@ SET NAMES utf8mb4;
 -- ---------------------------------------------------------------------
 -- 表结构
 -- ---------------------------------------------------------------------
+-- 重建而非增量：下面五张表无论是否存在都会先 DROP 再 CREATE，
+-- 重复执行会清空 blog_* 的既有数据（只有后面的菜单段才是「先删后插」的幂等增量）。
 DROP TABLE IF EXISTS `blog_article_tag`;
 DROP TABLE IF EXISTS `blog_comment`;
 DROP TABLE IF EXISTS `blog_article`;
@@ -111,6 +113,9 @@ CREATE TABLE `blog_comment` (
 DELETE FROM `sys_role_menu` WHERE `menu_id` BETWEEN 2000 AND 2099;
 DELETE FROM `sys_menu` WHERE `menu_id` BETWEEN 2000 AND 2099;
 
+-- 菜单字段约定：menu_type 取 M=目录 / C=菜单（component 指向 Vue 页面）/ F=按钮；
+-- is_frame=1 表示非外链、is_cache=0 表示不缓存页面；perms 是前端 v-hasPermi 与后端 @PreAuthorize 共用的权限串。
+-- 目录顺序 order_num：2000 挂在一级菜单第 5 位，2001~2004 是它的四个子菜单。
 INSERT INTO `sys_menu`
   (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `remark`)
 VALUES

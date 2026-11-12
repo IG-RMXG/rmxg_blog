@@ -4,6 +4,7 @@
       <span class="uat-badge">UAT</span>
       <span>验收环境 · ry-cloud-uat 库 · 与 DEV 完全隔离</span>
     </div>
+    <!-- 右侧：当前登录身份（未登录时不显示）+ 两个切换入口，切换期间只给对应按钮 loading -->
     <div class="uat-banner-right">
       <span class="uat-current" v-if="userStore.name">当前：{{ userStore.nickName || userStore.name }}（{{ currentRole }}）</span>
       <el-button size="small" type="warning" plain :loading="switching === 'admin'" @click="switchTo('admin')">
@@ -19,18 +20,24 @@
 <script setup>
 // UAT 专属组件：仅 import.meta.env.VITE_APP_ENV === 'uat' 时才被渲染
 // （见 Navbar.vue 里的 v-if="isUat"，生产构建恒不渲染）
+// 职责：提示当前处于验收环境（独立数据库），并提供一键切换「管理员 / 普通用户」的入口，
+// 方便验收时快速比对不同角色看到的菜单与按钮。
 import useUserStore from '@/store/modules/user'
 import { enterAs } from '@/utils/uat'
 
 const userStore = useUserStore()
+// switching 记录正在切换的角色，用于只给被点的那颗按钮加 loading；空串表示空闲。
 const switching = ref('')
 const bannerRef = ref()
 
+// 角色文案取自 userStore.roles：含 admin 显示「管理员」，其余拼接；未登录时 roles 为空。
 const currentRole = computed(() => {
   const roles = userStore.roles || []
   return roles.includes('admin') ? '管理员' : (roles.length ? roles.join(',') : '未登录')
 })
 
+// 切换角色：enterAs 内部会重新登录取 token 后整页跳转，所以成功分支不需要复位 loading；
+// 只有失败（catch）才清空，让按钮恢复可点，用户可以重试。
 function switchTo(role) {
   switching.value = role
   enterAs(role).catch(() => {

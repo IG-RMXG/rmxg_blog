@@ -50,6 +50,7 @@ public class SysDeptController {
         return ResponseVO.success(deptService.selectDeptById(deptId));
     }
 
+    /** 新增部门：parentId 为空或 0 表示顶级，非顶级时先确认上级部门存在 */
     @PostMapping
     public ResponseVO<Void> add(@Validated @RequestBody SysDept dept) {
         if (dept.getParentId() != null && dept.getParentId() != 0L
@@ -62,6 +63,7 @@ public class SysDeptController {
                 : ResponseVO.error(500, "新增失败");
     }
 
+    /** 修改部门：先校验 ID 非空与"上级不能是自己/自己的下级"，ancestors 重算在 service 内完成 */
     @PutMapping
     public ResponseVO<Void> edit(@Validated @RequestBody SysDept dept) {
         if (dept.getDeptId() == null) {

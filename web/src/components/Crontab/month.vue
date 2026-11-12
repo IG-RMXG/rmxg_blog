@@ -1,4 +1,5 @@
 <template>
+    <!-- 「月」维度四种写法：* / 区间 / 步长 / 枚举（月份用中文名展示，值仍是 1-12） -->
     <el-form>
         <el-form-item>
             <el-radio v-model='radioValue' :value="1">
@@ -34,7 +35,10 @@
 </template>
 
 <script setup>
+// 「月」维度编辑器：字段名 month、取值 1-12，模式与秒/分一致（* / 区间 / 步长 / 枚举）。
+// 月份下拉用中文名，但提交给表达式的始终是数字，避免后端解析失败。
 const emit = defineEmits(['update'])
+// cron：父组件汇总的表达式对象，用于反解析回显；check：父组件注入的整数夹紧函数
 const props = defineProps({
     cron: {
         type: Object,
@@ -54,13 +58,16 @@ const props = defineProps({
         }
     }
 })
+// radioValue 模式：1=* 2=区间 3=步长 4=枚举
 const radioValue = ref(1)
 const cycle01 = ref(1)
 const cycle02 = ref(2)
 const average01 = ref(1)
 const average02 = ref(1)
 const checkboxList = ref([])
+// 保存最后一次非空枚举，多选清空时兜底（月份下限为 1）
 const checkCopy = ref([1])
+// 下拉选项：key 为写入表达式的数值，value 仅用于界面展示
 const monthList = ref([
     {key: 1, value: '一月'},
     {key: 2, value: '二月'},
@@ -75,6 +82,7 @@ const monthList = ref([
     {key: 11, value: '十一月'},
     {key: 12, value: '十二月'}
 ])
+// computed 兼做夹紧与拼片段，夹紧后的值写回 ref 让输入框同步
 const cycleTotal = computed(() => {
     cycle01.value = props.check(cycle01.value, 1, 11)
     cycle02.value = props.check(cycle02.value, cycle01.value + 1, 12)
@@ -88,8 +96,10 @@ const averageTotal = computed(() => {
 const checkboxString = computed(() => {
     return checkboxList.value.join(',')
 })
+// 父组件改写 month 时反解析回显；模式或片段变化时回写父组件
 watch(() => props.cron.month, value => changeRadioValue(value))
 watch([radioValue, cycleTotal, averageTotal, checkboxString], () => onRadioChange())
+// 按 * → 区间(-) → 步长(/) → 枚举 的顺序识别写法
 function changeRadioValue(value) {
     if (value === '*') {
         radioValue.value = 1
@@ -108,6 +118,7 @@ function changeRadioValue(value) {
         radioValue.value = 4
     }
 }
+// 枚举模式去重转数字后回写；列表为空时补回上次选择，避免发出空片段
 function onRadioChange() {
     switch (radioValue.value) {
         case 1:
@@ -135,6 +146,7 @@ function onRadioChange() {
 .el-input-number--small, .el-select, .el-select--small {
     margin: 0 0.2rem;
 }
+/* 下拉框定宽，四行单选的控件与文案纵向对齐 */
 .el-select, .el-select--small {
     width: 18.8rem;
 }

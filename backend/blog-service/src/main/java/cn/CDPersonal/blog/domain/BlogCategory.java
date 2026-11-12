@@ -5,26 +5,29 @@ import cn.CDPersonal.blog.support.BaseEntity;
 import java.io.Serial;
 
 /**
- * 鍗氬鍒嗙被 blog_category
+ * 博客分类 blog_category。
+ *
+ * <p>后台「博客管理 - 分类管理」与门户「分类筛选」共用；status 为停用(1)时不出现在门户的
+ * 分类列表里，但历史文章仍保留该 categoryId。</p>
  */
 public class BlogCategory extends BaseEntity {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 鍒嗙被ID */
+    /** 分类ID（主键，自增） */
     private Long categoryId;
 
-    /** 鍒嗙被鍚嶇О */
+    /** 分类名称（门户按此展示，建议不超过 50 字） */
     private String categoryName;
 
-    /** 鏄剧ず椤哄簭 */
+    /** 显示顺序（升序，越小越靠前） */
     private Integer sort;
 
-    /** 鐘舵€侊紙0姝ｅ父 1鍋滅敤锛?*/
+    /** 状态：0正常 1停用 */
     private String status;
 
-    /** 璇ュ垎绫讳笅鐨勬枃绔犳暟锛堝彧璇伙紝鍒楄〃灞曠ず鐢級 */
+    /** 该分类下的文章数（只读，列表展示用，非表字段） */
     private Integer articleCount;
 
     public Long getCategoryId() {

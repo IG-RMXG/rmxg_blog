@@ -1,5 +1,15 @@
+/**
+ * 前端通用工具集合（多数沿用 RuoYi 模板，少量为代码生成器准备）。
+ *
+ * 大致分组：时间格式化、URL 查询串解析/序列化、UTF-8 字节数、对象合并与深拷贝、
+ * DOM class 操作、防抖、唯一串生成、命名风格转换，以及 generator 使用的
+ * makeMap / exportDefault / beautifierConf。
+ * 其中依赖 document / window 的函数只能在浏览器环境调用，不要在 SSR 或构建期引用。
+ */
 import { parseTime } from './ruoyi'
 
+// el-table 列 formatter 用：null/空串返回空串，按浏览器本地时区输出
+// yyyy-MM-dd HH:mm:ss（手工补零，避免 toLocaleString 受系统语言影响）
 /**
  * 表格时间格式化
  */
@@ -15,6 +25,8 @@ export function formatDate(cellValue) {
   return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds
 }
 
+// 相对时间展示：30 秒内“刚刚”、1 小时内按分钟向上取整、2 天内按小时/天；
+// 更早则用 option 指定的模式交给 parseTime，未传 option 时输出“x月x日x时x分”。
 /**
  * @param {number} time
  * @param {string} option
@@ -58,6 +70,7 @@ export function formatTime(time, option) {
   }
 }
 
+// 只取第一个 ? 之后的部分，同名参数后者覆盖前者；decodeURIComponent 不会把 + 还原成空格
 /**
  * @param {string} url
  * @returns {Object}
@@ -77,6 +90,8 @@ export function getQueryObject(url) {
   return obj
 }
 
+// 计算 UTF-8 字节数（用于对齐后端 varchar 之类按字节计的字段长度），
+// 从后往前扫，代理对（emoji 等）合计只多算 2 字节，与 UTF-8 的 4 字节一致
 /**
  * @param {string} input value
  * @returns {number} output value
@@ -107,6 +122,8 @@ export function cleanArray(actual) {
   return newArray
 }
 
+// 对象转 query string（不含前导 ?）：undefined 的键被丢弃，null 会变成字面量 "null"，
+// 调用前请先把空值清干净
 /**
  * @param {Object} json
  * @returns {Array}
@@ -125,6 +142,7 @@ export function param(json) {
  * @param {string} url
  * @returns {Object}
  */
+// 与 getQueryObject 互补：会把 + 还原成空格；没有查询串时返回空对象
 export function param2Obj(url) {
   const search = decodeURIComponent(url.split('?')[1]).replace(/\+/g, ' ')
   if (!search) {
@@ -143,6 +161,7 @@ export function param2Obj(url) {
   return obj
 }
 
+// 借临时 div 解析 HTML 后取纯文本（列表摘要、SEO 描述等场景），只应传可信片段
 /**
  * @param {string} val
  * @returns {string}
@@ -153,6 +172,7 @@ export function html2Text(val) {
   return div.textContent || div.innerText
 }
 
+// 深合并：source 覆盖 target；source 为数组时直接浅拷贝返回，不再逐层合并
 /**
  * Merges two objects, giving the last one precedence
  * @param {Object} target
@@ -177,6 +197,7 @@ export function objectMerge(target, source) {
   return target
 }
 
+// 手写 class 切换：已存在就按位置截掉，不存在就追加；不整理 className 里的多余空白
 /**
  * @param {HTMLElement} element
  * @param {string} className
@@ -197,6 +218,7 @@ export function toggleClass(element, className) {
   element.className = classString
 }
 
+// 日期范围筛选的默认值：'start' 返回 90 天前的毫秒时间戳，其余返回今天 0 点（本地时区）
 /**
  * @param {string} type
  * @returns {Date}
@@ -209,6 +231,7 @@ export function getTime(type) {
   }
 }
 
+// 防抖：immediate=true 时首次调用立即执行、等待期内不再触发；否则等停止触发 wait 毫秒后执行一次
 /**
  * @param {Function} func
  * @param {number} wait
@@ -250,6 +273,7 @@ export function debounce(func, wait, immediate) {
   }
 }
 
+// 只适用于纯对象/数组：Date、RegExp 等会被当成普通对象（可枚举键为空）克隆成 {}，也不处理循环引用
 /**
  * This is just a simple version of deep copy
  * Has a lot of edge cases bug
@@ -272,6 +296,7 @@ export function deepClone(source) {
   return targetObj
 }
 
+// 基于 Set 去重：对象按引用判等，结果顺序与首次出现顺序一致
 /**
  * @param {Array} arr
  * @returns {Array}
@@ -280,6 +305,7 @@ export function uniqueArr(arr) {
   return Array.from(new Set(arr))
 }
 
+// 时间戳与随机数拼成数字再转 32 进制；超出安全整数范围会丢精度，只用于前端临时 key
 /**
  * @returns {string}
  */
@@ -289,6 +315,7 @@ export function createUniqueString() {
   return (+(randomNum + timestamp)).toString(32)
 }
 
+// 用正则判断 class：cls 会直接拼进正则，含 . + * 等元字符时会误匹配，只适合普通类名
 /**
  * Check if an element has a class
  * @param {HTMLElement} elm
@@ -320,6 +347,8 @@ export function removeClass(ele, cls) {
   }
 }
 
+// 把逗号分隔的字符串编译成查找表：命中返回 true，未命中返回 undefined（不是 false）；
+// expectsLowerCase 用于标签名/属性名这类大小写不敏感场景，查询前统一转小写（generator/render.js 在用）
 export function makeMap(str, expectsLowerCase) {
   const map = Object.create(null)
   const list = str.split(',')
@@ -333,6 +362,8 @@ export function makeMap(str, expectsLowerCase) {
  
 export const exportDefault = 'export default '
 
+// 代码生成预览用的 js-beautify 参数（html / js 两套）；tool/build 会把 html+script+css
+// 拼好后按 html 配置格式化，缩进 2 空格、单行约 110 列
 export const beautifierConf = {
   html: {
     indent_size: '2',
@@ -374,16 +405,19 @@ export const beautifierConf = {
   }
 }
 
+// 只处理行首或空格后的单个小写字母；连字符、下划线等分隔符不处理
 // 首字母大小
 export function titleCase(str) {
   return str.replace(/( |^)[a-z]/g, L => L.toUpperCase())
 }
 
+// 只把“下划线 + 小写字母”替换成大写字母（下划线随之消失），连字符等其它分隔符不动
 // 下划转驼峰
 export function camelCase(str) {
   return str.replace(/_[a-z]/g, str1 => str1.substr(-1).toUpperCase())
 }
 
+// 校验十进制数字串：允许正负号与小数部分；不接受科学计数法、空串和 01 这类前导零
 export function isNumberStr(str) {
   return /^[+-]?(0|([1-9]\d*))(\.\d+)?$/g.test(str)
 }

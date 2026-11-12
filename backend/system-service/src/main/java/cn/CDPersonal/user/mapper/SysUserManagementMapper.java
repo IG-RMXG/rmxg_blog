@@ -99,6 +99,8 @@ public interface SysUserManagementMapper {
     })
     List<SysUser> selectUserList(SysUser query);
 
+    // 这里会带出 password / pwd_update_date，仅供 service 校验旧密码；
+    // SysUser.password 标了 WRITE_ONLY，不会被序列化回前端。
     /** 用户详情（含部门对象） */
     @Select("""
             SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
@@ -196,6 +198,10 @@ public interface SysUserManagementMapper {
 
     // ==================== 增删改 ====================
 
+    /**
+     * 新增用户。del_flag 固定 '0'，create_time / pwd_update_date 都由 NOW() 生成；
+     * password 必须由 service 先 BCrypt 加密后传入，SQL 里不做任何加密。
+     */
     @Insert("""
             INSERT INTO sys_user
               (dept_id, user_name, nick_name, user_type, email, phonenumber, sex, avatar,
@@ -250,6 +256,9 @@ public interface SysUserManagementMapper {
             """)
     int updateUserPassword(@Param("userId") Long userId, @Param("password") String password);
 
+    /**
+     * 只改启用 / 停用（status：'0' 正常、'1' 停用），不触碰其它列，前端表格开关走这里。
+     */
     @Update("""
             UPDATE sys_user
             SET status = #{status}, update_by = #{updateBy}, update_time = NOW()
@@ -272,6 +281,7 @@ public interface SysUserManagementMapper {
 
     // ==================== sys_user_role ====================
 
+    /** 该用户的角色（按 role_sort 排序，join sys_role 时已排除软删角色） */
     @Select("""
             SELECT r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope,
                    r.menu_check_strictly, r.dept_check_strictly, r.status, r.del_flag,
@@ -302,6 +312,10 @@ public interface SysUserManagementMapper {
             """)
     int deleteUserRolesByUserIds(@Param("array") Long[] userIds);
 
+    /**
+     * 批量写用户-角色关系。普通 INSERT，重复的 roleId 会撞联合主键导致整批失败，
+     * 因此调用方统一"先 deleteUserRolesByUserId 再插"。
+     */
     @Insert("""
             <script>
             INSERT INTO sys_user_role (user_id, role_id) VALUES
@@ -315,6 +329,10 @@ public interface SysUserManagementMapper {
 
     // ==================== sys_user_post ====================
 
+    /**
+     * 该用户的岗位（按 post_sort 排序）。sys_post 没有软删标记、这里也不过滤 status，
+     * 停用岗位同样返回，保证编辑用户时已分配的岗位能回显。
+     */
     @Select("""
             SELECT p.post_id, p.post_code, p.post_name, p.post_sort, p.status,
                    p.create_by, p.create_time, p.update_by, p.update_time, p.remark

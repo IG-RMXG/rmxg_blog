@@ -3,6 +3,8 @@
 # SYSTEM_REDIS_DATABASE=1 即可平行起一套，不影响 DEV（见 scripts/uat-up.ps1）。
 server:
   port: ${SYSTEM_PORT:8000}
+  # 上下文路径固定为 /system：网关把 /system/** 原样转发到这里，控制器只映射 /user、/menu
+  # 这类不带前缀的路径（见 SysUserController）；前端经 Vite 代理的 /dev-api 拼出的也是 /system/**。
   servlet:
     context-path: /system
 

@@ -1,10 +1,20 @@
+// ============================================================================
+// 组件库（Element Plus）样式微调集合。
+//
+// 文件名沿用历史命名 element-ui，实际组件库是 element-plus；
+// 这里只放"组件库默认样式不满足业务布局"的补丁，且优先用 CSS 变量而不是写死颜色，
+// 以便暗黑模式能一并生效。!important 多用于压过组件库自身的高优先级规则，
+// 删除某条规则前先确认它原本修的是哪个组件。
+// ============================================================================
 // cover some element-ui styles
 
+// 面包屑统一常规字重，避免继承全局 label 的 700 粗体
 .el-breadcrumb__inner,
 .el-breadcrumb__inner a {
   font-weight: 400 !important;
 }
 
+// 隐藏原生 file input：上传交互统一交给 el-upload 的按钮与拖拽区
 .el-upload {
   input[type="file"] {
     display: none !important;
@@ -15,6 +25,7 @@
   display: none;
 }
 
+// 表格单元格内的 tag 去掉右侧外边距，避免状态列被撑宽、与相邻列错位
 .cell {
   .el-tag {
     margin-right: 0px;
@@ -28,6 +39,8 @@
   }
 }
 
+// 表格操作列的固定宽度按钮：--mini 尺寸下压缩内边距并统一 60px 宽，
+// 保证同一行多个按钮等宽、不因文字长度不同而换行
 .fixed-width {
   .el-button--mini {
     padding: 7px 10px;
@@ -35,6 +48,7 @@
   }
 }
 
+// 状态列（tag 展示的枚举值）居中显示，并收窄单元格左右内边距
 .status-col {
   .cell {
     padding: 0 10px;
@@ -55,6 +69,7 @@
 }
 
 // refine element ui upload
+// 上传拖拽区撑满容器宽度：组件库默认宽度固定，放在全宽弹窗/表单里会空出一截
 .upload-container {
   .el-upload {
     width: 100%;
@@ -83,6 +98,7 @@
   box-sizing: content-box;
 }
 
+// 折叠侧边栏时隐藏子菜单的展开箭头，否则 54px 的窄栏里会挤出一截小箭头
 .el-menu--collapse
   > div
   > .el-submenu
@@ -91,6 +107,7 @@
   display: none;
 }
 
+// 表格操作列的"更多"下拉触发文字统一用主题色（需提升优先级，故加 !important）
 .el-dropdown .el-dropdown-link{
   color: var(--el-color-primary) !important;
 }

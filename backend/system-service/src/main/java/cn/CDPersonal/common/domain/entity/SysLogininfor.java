@@ -12,6 +12,8 @@ import java.util.Date;
 public class SysLogininfor extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 登录日志只追加不修改，删除是物理删除（该表没有 del_flag）；列表按 info_id 倒序。
+
     /** 访问ID */
     private Long infoId;
     /** 用户账号 */
@@ -23,6 +25,7 @@ public class SysLogininfor extends BaseEntity {
     /** 提示信息 */
     private String msg;
 
+    // 插入时由 SQL 的 NOW() 写入，实体里设置的值不会落库；列表的时间范围筛选也用这一列
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date accessTime;
 

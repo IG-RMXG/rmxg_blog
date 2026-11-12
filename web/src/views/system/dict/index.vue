@@ -1,5 +1,6 @@
 <template>
    <div class="app-container">
+      <!-- 检索区：名称/类型为模糊匹配，状态取自 sys_normal_disable，创建时间区间由 addDateRange 折成 beginTime/endTime -->
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
          <el-form-item label="字典名称" prop="dictName">
             <el-input
@@ -50,6 +51,7 @@
          </el-form-item>
       </el-form>
 
+      <!-- 工具栏：按钮可见性由 v-hasPermi 控制；「刷新缓存」复用 system:dict:remove 权限点 -->
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
             <el-button
@@ -101,6 +103,7 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <!-- 列表：「字典类型」列渲染成路由链接，跳到该类型下的字典数据页（/system/dict-data/index/:dictId） -->
       <el-table v-loading="loading" :data="typeList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="字典编号" align="center" prop="dictId" />
@@ -131,6 +134,7 @@
          </el-table-column>
       </el-table>
 
+      <!-- 分页：pageNum/pageSize 双向绑定查询条件，total 为 0 时整块隐藏 -->
       <pagination
          v-show="total > 0"
          :total="total"
@@ -172,12 +176,23 @@
 </template>
 
 <script setup name="Dict">
+/*
+ * 字典类型管理页（列表 + 新增/编辑弹窗），读写 sys_dict_type。
+ * 接口前缀 /system/dict/type：listType 分页查询、getType 详情、addType/updateType 写入、
+ * delType 批量删除、refreshCache 刷新缓存。
+ * 权限点：system:dict:add / system:dict:edit / system:dict:remove / system:dict:export。
+ * 字段约定：status 取自 sys_normal_disable（'0'=正常 '1'=停用），新增默认 '0'；
+ * dictType 全局唯一，修改它时后端会在同一事务里同步改写 sys_dict_data 的冗余 dict_type。
+ */
 import useDictStore from '@/store/modules/dict'
 import { listType, getType, delType, addType, updateType, refreshCache } from "@/api/system/dict/type"
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict("sys_normal_disable")
 
+// ===== 列表与弹窗状态 =====
+// single / multiple 是「反义」禁用标志：single=true 表示未恰好选中 1 行（禁用工具栏修改），
+// multiple=true 表示一行都没选（禁用删除）。
 const typeList = ref([])
 const open = ref(false)
 const loading = ref(true)
@@ -189,6 +204,8 @@ const total = ref(0)
 const title = ref("")
 const dateRange = ref([])
 
+// 查询条件 / 表单 / 校验规则合放在一个 reactive 里；分页按后端约定传 pageNum/pageSize，列表返回 { rows, total }。
+// rules 只校验必填，dictType 唯一性由后端校验并以「字典类型已存在」报错。
 const data = reactive({
   form: {},
   queryParams: {
@@ -206,6 +223,7 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+// 列表刷新统一入口：查询条件与创建时间区间经 proxy.addDateRange 合并后发出。
 /** 查询字典类型列表 */
 function getList() {
   loading.value = true
@@ -222,6 +240,7 @@ function cancel() {
   reset()
 }
 
+// 清空 form 并复位校验状态；dictId 置空是「新增」的判定依据，status 预置 '0' 与后端默认值一致。
 /** 表单重置 */
 function reset() {
   form.value = {
@@ -261,6 +280,7 @@ function handleSelectionChange(selection) {
   multiple.value = !selection.length
 }
 
+// row 只在行内按钮触发时存在；工具栏按钮传入的是点击事件，此时回退到勾选的 ids（数组，序列化后是单个编号）。
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset()
@@ -272,6 +292,7 @@ function handleUpdate(row) {
   })
 }
 
+// 以 dictId 是否存在区分新增/修改；成功后不主动清前端字典缓存，需点工具栏「刷新缓存」才能看到新值。
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["dictRef"].validate(valid => {
@@ -293,6 +314,7 @@ function submitForm() {
   })
 }
 
+// 行内/批量共用：未传 row 时删除勾选的全部编号；先二次确认，后端在该类型下仍有字典数据时整批拒绝。
 /** 删除按钮操作 */
 function handleDelete(row) {
   const dictIds = row.dictId || ids.value
@@ -304,6 +326,7 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+// 走 proxy.download 下载文件流，沿用当前查询条件（含分页参数），文件名带时间戳避免浏览器覆盖。
 /** 导出按钮操作 */
 function handleExport() {
   proxy.download("system/dict/type/export", {
@@ -311,6 +334,8 @@ function handleExport() {
   }, `dict_${new Date().getTime()}.xlsx`)
 }
 
+// 后端接口是空实现，真正生效的是随后的 useDictStore().cleanDict()（清空 Pinia 里的字典内存缓存）；
+// 只调接口不清缓存时，页面上已渲染的字典标签不会变化。
 /** 刷新缓存按钮操作 */
 function handleRefreshCache() {
   refreshCache().then(() => {

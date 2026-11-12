@@ -22,6 +22,7 @@ config({
   }
 })
 
+// 工具按钮按 '-' 分组、'=' 分左右两段；删掉某项即可隐藏对应按钮。
 /**
  * 工具栏：覆盖常见博客正文元素。
  * 刻意不含 prettier / fullscreen —— 这两项依赖 CDN 运行时脚本，本地不可用时会报错。
@@ -34,6 +35,8 @@ export const MD_TOOLBARS = [
   'revoke', 'next', 'pageFullscreen', 'preview', 'previewOnly', 'catalog'
 ]
 
+// 预览主题与代码主题都固定 github，和上面引入的 highlight.js github.css 对齐，避免明暗割裂
 export const MD_PREVIEW_THEME = 'github'
 export const MD_CODE_THEME = 'github'
+// 底栏：字数统计、分隔符、滚动同步开关
 export const MD_FOOTERS = ['markdownTotal', '=', 'scrollSwitch']

@@ -3,6 +3,8 @@ package cn.CDPersonal.blog.support;
 import java.io.Serializable;
 import java.util.List;
 
+// 与 ResponseVO 是两套响应结构：列表接口直接返回本类（前端读 res.rows / res.total），
+// 其余接口返回 ResponseVO（数据在 res.data）；本类的 code 由 PageUtils.getDataTable 固定写 200。
 /**
  * 表格分页数据对象，前端统一读 { total, rows, code, msg }。
  */
@@ -22,9 +24,11 @@ public class TableDataInfo implements Serializable {
     /** 消息内容 */
     private String msg;
 
+    /** 供 Jackson 反序列化与 PageUtils 逐个 set 字段使用 */
     public TableDataInfo() {
     }
 
+    /** 便捷构造：rows 为当前页数据，total 是过滤后的总记录数（不是当前页条数） */
     public TableDataInfo(List<?> list, long total) {
         this.rows = list;
         this.total = total;

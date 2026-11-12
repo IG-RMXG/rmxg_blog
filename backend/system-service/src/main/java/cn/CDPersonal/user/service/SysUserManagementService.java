@@ -39,6 +39,8 @@ public class SysUserManagementService {
     private final SysDeptMapper deptMapper;
     private final SysPostMapper postMapper;
     private final SysRoleMapper roleMapper;
+    // 密码哈希统一 BCrypt（$2a$ 前缀）；直接 new 实例而不注入 bean，
+    // 避免与 auth 模块的编码器配置互相影响。
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public SysUserManagementService(SysUserManagementMapper userMapper,
@@ -109,6 +111,7 @@ public class SysUserManagementService {
         return exist == null || exist.getUserId().equals(user.getUserId());
     }
 
+    // 手机号 / 邮箱允许为空：空值不查库，直接视为唯一，避免把"未填写"当成重复。
     public boolean checkPhoneUnique(SysUser user) {
         if (user.getPhonenumber() == null || user.getPhonenumber().isBlank()) {
             return true;
@@ -169,6 +172,7 @@ public class SysUserManagementService {
     @Transactional
     public int deleteUserByIds(Long[] userIds) {
         userMapper.deleteUserRolesByUserIds(userIds);
+        // 岗位关联只有"按单个用户删除"的接口，这里按 userId 逐条清；角色关联有批量接口，走一次 IN。
         for (Long userId : userIds) {
             userMapper.deleteUserPostsByUserId(userId);
         }
@@ -276,6 +280,8 @@ public class SysUserManagementService {
     public List<SysRole> buildAuthRoleList(Long userId) {
         List<SysRole> all = selectRoleAll();
         List<Long> owned = userMapper.selectRoleIdsByUserId(userId);
+        // owned 直接来自 sys_user_role，可能残留已软删角色的 id；
+        // all 只含有效角色，contains 时这些多余 id 自然被忽略。
         for (SysRole role : all) {
             role.setFlag(owned != null && owned.contains(role.getRoleId()));
         }
@@ -315,6 +321,7 @@ public class SysUserManagementService {
             return;
         }
         List<Long> scope = deptQueryMapper.selectDeptIdAndChildren(query.getDeptId());
+        // 查不到（部门不存在或已软删）时兜底成只查该 deptId，避免拼出 IN () 这样的非法 SQL。
         if (scope == null || scope.isEmpty()) {
             scope = List.of(query.getDeptId());
         }
@@ -326,6 +333,7 @@ public class SysUserManagementService {
         params.put("deptIdScope", scope);
     }
 
+    // 枚举兜底：userType=00（系统用户）、status=0（正常）、sex=2（未知），与前端字典保持一致。
     private void fillDefaults(SysUser user) {
         if (user.getUserType() == null || user.getUserType().isBlank()) {
             user.setUserType("00");

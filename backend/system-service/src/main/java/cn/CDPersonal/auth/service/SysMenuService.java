@@ -6,6 +6,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 菜单路由装配服务：查库 → 建树 → 转成 RuoYi 前端路由结构。
+ *
+ * 本类不做缓存，每次刷新路由都重新查库；管理员走全量菜单分支，
+ * 普通用户按 sys_user_role / sys_role_menu 过滤（原因见 getRouters 的说明）。
+ */
 @Service
 public class SysMenuService {
 

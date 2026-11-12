@@ -43,6 +43,8 @@ public class SysDictTypeController extends BaseController {
         return PageUtils.getDataTable(dictService.selectTypeList(query));
     }
 
+    // 全量查询的 SQL 没有 status 条件，这里在内存里过滤；字典类型量级很小，可接受。
+    // status = "0" 表示正常，其余取值不会出现在下拉里。
     /** 下拉列表：只返回正常状态的类型 */
     @GetMapping("/optionselect")
     public ResponseVO<List<SysDictType>> optionselect() {
@@ -58,6 +60,7 @@ public class SysDictTypeController extends BaseController {
         return ResponseVO.success(dictService.selectTypeById(dictId));
     }
 
+    /** 新增类型：先校验 dict_type 唯一（库上唯一索引兜底），status 未传默认 "0" */
     @PostMapping
     public ResponseVO<Void> add(@Valid @RequestBody SysDictType dictType) {
         if (!dictService.checkTypeUnique(dictType)) {
@@ -91,6 +94,7 @@ public class SysDictTypeController extends BaseController {
         return ResponseVO.success();
     }
 
+    /** 批量删除类型：逐条检查是否还被字典数据引用，命中第一个冲突项就整批放弃 */
     @DeleteMapping("/{dictIds}")
     public ResponseVO<Void> remove(@PathVariable Long[] dictIds) {
         for (Long dictId : dictIds) {

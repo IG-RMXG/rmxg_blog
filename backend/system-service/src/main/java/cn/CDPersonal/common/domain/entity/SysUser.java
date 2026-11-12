@@ -22,6 +22,7 @@ public class SysUser extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     private Long userId;
+    // 列表按部门筛选时不会直接比较 dept_id：service 会把它展开成"本部门 + 所有子孙部门"放进 params.deptIdScope
     private Long deptId;
     private String userName;
     private String nickName;
@@ -41,6 +42,7 @@ public class SysUser extends BaseEntity {
     private String delFlag;
     private String loginIp;
     private Date loginDate;
+    // 改密时由 SysUserManagementMapper.updateUserPassword 写入 NOW()，可用于判断密码是否长期未更新
     private Date pwdUpdateDate;
 
     /** 所属部门（只读，来自 sys_dept 的 join） */
@@ -214,6 +216,12 @@ public class SysUser extends BaseEntity {
         this.posts = posts;
     }
 
+    /**
+     * 实体层便捷判断：userId = 1 视为超级管理员。
+     *
+     * 注意与 SysUserService.isAdmin(Long) 口径不同（那边看角色标识里是否含 admin），
+     * 权限判定请走 service；本方法只适用于已明确 user_id = 1 约定的场景。
+     */
     public boolean isAdmin() {
         return userId != null && userId == 1L;
     }

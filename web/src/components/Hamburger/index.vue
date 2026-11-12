@@ -15,7 +15,13 @@
 </template>
 
 <script setup>
+/**
+ * 侧边栏折叠开关（汉堡按钮）：只负责展示与派发点击，自身不维护折叠状态。
+ * 父组件收到 toggleClick 后修改 app store 的 sidebar.opened，再通过 isActive 回传，
+ * 图标据此翻转方向。SVG 的 path 是图标绘制数据，不要改动。
+ */
 defineProps({
+  // true 表示侧边栏当前已折叠，图标旋转 180° 指向另一侧
   isActive: {
     type: Boolean,
     default: false
@@ -23,6 +29,7 @@ defineProps({
 })
 
 const emit = defineEmits()
+// 无参事件：折叠与否由父组件决定，本组件不关心结果
 const toggleClick = () => {
   emit('toggleClick')
 }
@@ -36,6 +43,7 @@ const toggleClick = () => {
   height: 20px;
 }
 
+/* 折叠态整体翻转，形成「展开 / 收起」的方向指示 */
 .hamburger.is-active {
   transform: rotate(180deg);
 }

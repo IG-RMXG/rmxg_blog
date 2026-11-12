@@ -13,8 +13,13 @@ import java.math.BigDecimal;
 /**
  * 自定义导出Excel数据注解
  * 
+ * 使用方式：标注在导出/导入实体的字段上，供导出实现反射读取列名、顺序、类型、颜色等元数据。
+ * 本仓库 utils/poi 下只保留了本注解与 ExcelHandlerAdapter，没有 ExcelUtil 实现，
+ * 因此当前主要作为字段元数据声明使用（SysDept/SysPost/SysConfig 等实体已标注）。
+ *
  * @author ruoyi
  */
+// 运行时反射读取，所以必须是 RUNTIME；只作用于字段，不能标在类或方法上。
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface Excel
@@ -180,6 +185,7 @@ public @interface Excel
         }
     }
 
+    /** 单元格类型：0 数字、1 字符串、2 图片、3 文本；cellType() 默认取 STRING */
     public enum ColumnType
     {
         NUMERIC(0), STRING(1), IMAGE(2), TEXT(3);

@@ -53,6 +53,7 @@ public class SysNoticeController extends BaseController {
         return ResponseVO.success(noticeService.selectNoticeById(noticeId));
     }
 
+    /** 新增公告：未传 status 时补 "0"，即新增后立即会出现在首页 listTop */
     @PostMapping
     public ResponseVO<Void> add(@Valid @RequestBody SysNotice notice) {
         if (notice.getStatus() == null) {
@@ -64,6 +65,7 @@ public class SysNoticeController extends BaseController {
                 : ResponseVO.error(ResponseStatus.INTERNAL_SERVER_ERROR.getCode(), "新增失败");
     }
 
+    /** 修改公告：SQL 是全量 UPDATE，没有回传的字段会以 null 覆盖，前端需回填完整表单 */
     @PutMapping
     public ResponseVO<Void> edit(@Valid @RequestBody SysNotice notice) {
         notice.setUpdateBy(currentUserName());

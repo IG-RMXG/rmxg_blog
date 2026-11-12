@@ -29,6 +29,7 @@
         <h2>欢迎回来</h2>
         <p>登录后即可评论、写文章、管理自己的文章</p>
 
+        <!-- 用原生 form + submit：回车与点按钮共用同一条提交路径，@submit.prevent 阻止浏览器整页刷新 -->
         <form @submit.prevent="submit">
           <div class="portal-login__field">
             <label for="portal-username">账号</label>
@@ -64,6 +65,7 @@
           <router-link to="/login">管理员入口</router-link>
         </div>
 
+        <!-- UAT 专用免密入口：isUat 是编译期常量，生产构建里恒为 false，这段 UI 不会出现 -->
         <div v-if="isUat" class="portal-login__uat">
           <p>UAT 测试环境：可跳过密码直接以指定角色进入</p>
           <div class="portal-login__uat-btns">
@@ -81,6 +83,14 @@
 </template>
 
 <script setup name="PortalLogin">
+/**
+ * 门户登录页（/portal/login）。
+ *
+ * 账号密码走若依的统一登录接口，成功后补一次 getInfo 再跳 redirect 指定的页面；
+ * 管理员也先落在门户而不是 /index——顶栏和页脚都留了进后台的入口，
+ * 避免登录后直接闪进后台、让只想评论的读者迷路。
+ * UAT 环境额外提供「以某角色进入」的免密按钮（详见 @/utils/uat）。
+ */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -96,14 +106,18 @@ const { site } = usePortalSite()
 
 const form = reactive({ username: '', password: '' })
 const loading = ref(false)
+// 记录正在免密进入的角色（'' 表示空闲），让被点击的那个按钮单独转圈
 const uatLoading = ref('')
 
 // 只接受门户内部地址作为回跳目标，避免 ?redirect=//evil.com 这类开放重定向
+// （必须用 startsWith('/portal')：只判断 startsWith('/') 会放过协议相对地址 //evil.com）
 const redirect = computed(() => {
   const target = route.query.redirect ? String(route.query.redirect) : ''
   return target.startsWith('/portal') ? target : '/portal/home'
 })
 
+// 先换 token、再取用户信息，两步必须串行：门户顶栏的昵称/角色、路由守卫都依赖 getInfo 的结果。
+// 这里只做「非空」这种最低限度校验，账号是否存在、是否停用交给后端判断。
 function submit() {
   if (!form.username.trim()) {
     ElMessage.warning('请输入用户名')
@@ -126,6 +140,8 @@ function submit() {
     })
 }
 
+// UAT 免密进入：enterAs 成功后会整页跳转（页面即将卸载，无需复位 uatLoading）；
+// 只有失败时才会走 catch，需要在这里收尾并给用户一个可操作的提示。
 function uatEnter(role) {
   uatLoading.value = role
   enterAs(role, '/portal/home').catch(e => {

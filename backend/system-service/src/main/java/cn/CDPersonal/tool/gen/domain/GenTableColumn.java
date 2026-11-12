@@ -8,6 +8,14 @@ import java.util.Date;
 
 /**
  * 代码生成业务表字段 gen_table_column。
+ *
+ * 一行对应所属表的一个物理列，是"表结构元数据 + 前端展示配置"的混合体：
+ *   - 结构类（columnName/columnType/isPk/isIncrement）来自 information_schema，编辑页不可改，
+ *     同步数据库时会整体删除重建；
+ *   - 展示类（javaType/javaField/isInsert/isEdit/isList/isQuery/queryType/htmlType/dictType）
+ *     决定生成代码与表单控件，可通过 updateGenTableColumnConfig 单独修改。
+ *
+ * 布尔语义统一用字符串 "1"/"0"（与前端 gen 页提交格式一致），不是 boolean。
  */
 public class GenTableColumn implements Serializable {
     @Serial
@@ -38,9 +46,12 @@ public class GenTableColumn implements Serializable {
     private String queryType;
     /** 显示类型（input / textarea / select / radio / checkbox / datetime / imageUpload） */
     private String htmlType;
+    /** 字典类型，htmlType 为 select/radio 时前端据此取字典项，可为空 */
     private String dictType;
+    /** 展示顺序：导入时按物理列序（ordinal_position）递增，列表查询按它升序 */
     private Integer sort;
 
+    // 审计字段：create_time 由插入 SQL 的 NOW() 生成，update_time 在更新展示配置时写 NOW()。
     private String createBy;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

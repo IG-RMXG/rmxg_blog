@@ -1,5 +1,9 @@
 <template>
    <div class="app-container">
+      <!--
+        用户授权角色页：路由 /system/user-auth/role/:userId，入口在用户列表的「分配角色」。
+        上半部分只读展示用户，下半部分勾选角色；停用角色（status !== '0'）不可勾选。
+      -->
       <h4 class="form-header h4">基本信息</h4>
       <el-form :model="form" label-width="80px">
          <el-row>
@@ -17,6 +21,7 @@
       </el-form>
 
       <h4 class="form-header h4">角色信息</h4>
+      <!-- 角色全量返回、前端分页（slice）；row-key + reserve-selection 保证跨页勾选不丢 -->
       <el-table v-loading="loading" :row-key="getRowKey" @row-click="clickRow" ref="roleRef" @selection-change="handleSelectionChange" :data="roles.slice((pageNum - 1) * pageSize, pageNum * pageSize)">
          <el-table-column label="序号" width="55" type="index" align="center">
             <template #default="scope">
@@ -46,6 +51,13 @@
 </template>
 
 <script setup name="AuthRole">
+/**
+ * 用户授权角色页。
+ *
+ * 接口：GET /system/user/authRole/{userId} 返回顶层 { user, roles }，roles 每项带 flag
+ *      表示该用户当前是否已拥有；PUT /system/user/authRole 的 { userId, roleIds } 走 query，
+ *      roleIds 必须是逗号拼接字符串（数组会被序列化成 roleIds[]=...，后端解析不到）。
+ */
 import { getAuthRole, updateAuthRole } from "@/api/system/user"
 
 const route = useRoute()
@@ -65,6 +77,7 @@ const form = ref({
 
 /** 单击选中行数据 */
 function clickRow(row) {
+  // 整行点击等价于勾选/取消；停用角色直接忽略，避免误把用户挂到已停用的角色上
   if (checkSelectable(row)) {
     proxy.$refs["roleRef"].toggleRowSelection(row)
   }
@@ -81,6 +94,7 @@ function getRowKey(row) {
 }
 
 // 检查角色状态
+// status 语义与角色管理页一致：'0' 正常、'1' 停用
 function checkSelectable(row) {
   return row.status === "0" ? true : false
 }
@@ -93,6 +107,7 @@ function close() {
 
 /** 提交按钮 */
 function submitForm() {
+  // 后端只接受逗号分隔的 roleIds 字符串；全不选时提交空串，表示清空该用户的全部角色
   const userId = form.value.userId
   const rIds = roleIds.value.join(",")
   updateAuthRole({ userId: userId, roleIds: rIds }).then(response => {
@@ -101,6 +116,7 @@ function submitForm() {
   })
 }
 
+// 自执行初始化：仅当路由带 userId 时拉数据，并据 flag 回显已拥有的角色
 (() => {
   const userId = route.params && route.params.userId
   if (userId) {
@@ -109,6 +125,7 @@ function submitForm() {
       form.value = response.user
       roles.value = response.roles
       total.value = roles.value.length
+      // 必须等 el-table 渲染完成再 toggleRowSelection，否则拿不到行实例、勾选会失效
       nextTick(() => {
         roles.value.forEach(row => {
           if (row.flag) {

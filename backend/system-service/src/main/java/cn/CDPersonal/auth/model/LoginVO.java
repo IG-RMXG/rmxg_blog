@@ -16,8 +16,11 @@ public class LoginVO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** 会话 token（纯 UUID，非 JWT）；字段名保留下划线是为了匹配前端 setToken(data.access_token) */
     private String access_token;
+    /** 固定 Bearer，前端据此拼 Authorization 头 */
     private String token_type;
+    /** 有效期（秒），由 TokenService.EXPIRE_MINUTES 换算而来 */
     private Long expires_in;
 
     public LoginVO() {

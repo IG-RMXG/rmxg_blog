@@ -62,6 +62,7 @@ public class TokenService {
         if (header != null && header.startsWith(BEARER_PREFIX)) {
             return header.substring(BEARER_PREFIX.length()).trim();
         }
+        // 没有 Bearer 前缀时原样返回，兼容直接放裸 token 的调用方
         return header;
     }
 
@@ -88,6 +89,7 @@ public class TokenService {
             return null;
         }
         // 续期
+        // 滑动过期：每次通过校验的请求都把 TTL 重置为 EXPIRE_MINUTES，活跃会话不会中途掉线
         redis.expire(TOKEN_PREFIX + token, EXPIRE_MINUTES, TimeUnit.MINUTES);
         return sysUserMapper.selectByUserId(session.getUserId());
     }
@@ -95,6 +97,7 @@ public class TokenService {
     /** 在线会话列表（tokenId + 会话信息），供"在线用户"页使用 */
     public List<TokenEntry> listSessions() {
         List<TokenEntry> result = new ArrayList<>();
+        // 用 KEYS 全量扫描：会话量级小，且只服务管理端"在线用户"页；量级上来需换 SCAN
         Set<String> keys = redis.keys(TOKEN_PREFIX + "*");
         if (keys == null) {
             return result;

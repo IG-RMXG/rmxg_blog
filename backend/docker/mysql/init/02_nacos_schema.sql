@@ -9,6 +9,17 @@
 --   MYSQL_SERVICE_DB_NAME=nacos_dev
 -- =====================================================================
 
+-- =====================================================================
+-- 下表按用途分组（DDL 来自 Nacos 官方脚本，逐表 COMMENT 只描述字段）：
+--   config_info            配置主表，(data_id, group_id, tenant_id) 唯一，一条记录即一份配置
+--   his_config_info        配置的历史版本，控制台「历史版本」页读它
+--   config_info_beta       灰度（β）发布的配置，beta_ips 限定只对哪些客户端生效
+--   config_info_tag        按 tag 发布的配置；config_tags_relation 维护 tag 与配置的关系
+--   config_info_aggr       聚合配置，一个 data_id 下挂多条子配置
+--   group_capacity / tenant_capacity / tenant_info  配额上限与命名空间（租户）信息
+--   users / roles / permissions                     控制台账号体系，仅在开启鉴权时参与登录校验
+-- 这些表全部由 Nacos 服务端自行读写，业务代码和脚本都不要直接改。
+-- =====================================================================
 USE `nacos_dev`;
 
 /******************************************/

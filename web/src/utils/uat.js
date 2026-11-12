@@ -21,6 +21,7 @@ export const isUat = import.meta.env.VITE_APP_ENV === 'uat'
  * @param {string} target 登录后落地页：若依后台（默认 /index）或门户（/portal/home）
  */
 export function enterAs(role, target = '/index') {
+  // 先清旧 token，避免上一个身份的会话残留，再写入假登录返回的新 token
   removeToken()
   return fakeLogin(role).then(res => {
     const data = res.data
@@ -28,6 +29,7 @@ export function enterAs(role, target = '/index') {
       throw new Error('假登录返回异常')
     }
     setToken(data.token)
+    // 用 origin 拼绝对地址做整页跳转，子路径部署时才不会被当成前端路由
     window.location.href = window.location.origin + (target || '/index')
     return data
   })

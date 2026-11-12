@@ -10,6 +10,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 认证与权限查询服务：负责账号密码校验、签发 token、查询角色/权限标识。
+ *
+ * 密码校验兼容 BCrypt 与历史明文两种存储形式；admin 的权限/菜单特例分别见
+ * isAdmin 与 SysMenuMapper.selectAllPerms 的说明。
+ */
 @Service
 public class SysUserService {
 

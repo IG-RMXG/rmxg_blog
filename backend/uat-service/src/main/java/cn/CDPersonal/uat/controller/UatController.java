@@ -35,6 +35,9 @@ public class UatController {
      */
     @PostMapping("/fake-login")
     public ResponseVO<Map<String, Object>> fakeLogin(@RequestBody Map<String, String> body) {
+        // Service 用两类异常区分失败原因，这里翻译成业务 code（HTTP 状态始终是 200，由 ResponseVO 承载）：
+        // IllegalArgumentException = role 缺失/不在白名单（400，调用方参数问题）；
+        // IllegalStateException = 测试账号被停用或 Redis 写会话失败（500，环境问题）。
         try {
             return ResponseVO.success(fakeLoginService.fakeLogin(body == null ? null : body.get("role")));
         } catch (IllegalArgumentException e) {
@@ -47,6 +50,8 @@ public class UatController {
     /** 环境自检：库 / Redis / 测试账号就绪情况，排查 UAT 起不来时先看这里 */
     @GetMapping("/status")
     public ResponseVO<Map<String, Object>> status() {
+        // 三个探测方法内部都自行吞异常并返回布尔值，所以依赖全挂时本接口依然返回 200，
+        // 排查时看的是响应体里的 db / redis / accounts，而不是 HTTP 状态码。
         Map<String, Object> status = new HashMap<>();
         status.put("service", "uat-service");
         status.put("db", fakeLoginService.dbOk());

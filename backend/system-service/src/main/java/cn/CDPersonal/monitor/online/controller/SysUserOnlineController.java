@@ -21,6 +21,9 @@ import java.util.*;
  *   DELETE /system/online/{tokenId}   强退
  *
  * 在线状态以 Redis 里的 login_tokens:* 为准，不落库。
+ *
+ * 列表数据是“扫描 Redis 快照 → 内存过滤排序 → 手工切片”三段式，不是数据库分页；
+ * tokenId 就是 Redis key 去掉 login_tokens: 前缀后的部分。
  */
 @RestController
 @RequestMapping("/online")
@@ -34,6 +37,12 @@ public class SysUserOnlineController {
         this.sysUserMapper = sysUserMapper;
     }
 
+    /**
+     * 在线用户列表。
+     *
+     * 一次取回全部会话后在内存里处理：ipaddr / userName 为 contains 模糊匹配，空串视为不过滤；
+     * 排序按格式化后的登录时间字符串倒序（定长 yyyy-MM-dd HH:mm:ss，字典序即时间序）。
+     */
     @GetMapping("/list")
     public TableDataInfo list(@RequestParam(required = false) String ipaddr,
                              @RequestParam(required = false) String userName) {
@@ -54,6 +63,8 @@ public class SysUserOnlineController {
         }
 
         List<OnlineUser> all = new ArrayList<>();
+        // SimpleDateFormat 非线程安全，这里在方法内创建、随请求销毁；
+        // 使用服务器默认时区，与会话中保存的毫秒时间戳对应。
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         for (TokenService.TokenEntry e : entries) {
             TokenSession s = e.session();
@@ -94,6 +105,12 @@ public class SysUserOnlineController {
         return info;
     }
 
+    /**
+     * 强退指定会话。
+     *
+     * 只删除该 tokenId 对应的 Redis 会话，同一用户的其它登录不受影响；
+     * 返回 false 表示会话已过期或已被删除，前端提示“该会话已失效”刷新即可。
+     */
     @DeleteMapping("/{tokenId}")
     public ResponseVO<Void> forceLogout(@PathVariable String tokenId) {
         boolean removed = tokenService.deleteSession(tokenId);
@@ -108,6 +125,7 @@ public class SysUserOnlineController {
         return attrs == null ? null : attrs.getRequest().getParameter(name);
     }
 
+    // 非数字、空白、<=0 一律回退默认值，避免前端脏参数让列表 500。
     private int parseInt(String v, int def) {
         if (v == null || v.isBlank()) {
             return def;

@@ -43,6 +43,11 @@ public class RoleMenuTreeSelectVO implements Serializable {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 组装成功响应。data 与 menus 指向同一个 List 实例（非深拷贝），
+     * 这样两种前端读法（response.menus / response.data）拿到的树完全一致；
+     * checkedKeys 为 null 时退化为空列表，el-tree 的 setCheckedKeys 不接受 null。
+     */
     public static RoleMenuTreeSelectVO success(List<TreeSelect> menus, List<Long> checkedKeys) {
         RoleMenuTreeSelectVO vo = new RoleMenuTreeSelectVO();
         vo.setMenus(menus == null ? new ArrayList<>() : menus);

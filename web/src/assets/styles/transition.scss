@@ -1,3 +1,12 @@
+// ============================================================================
+// 全局过渡动画类：由 Vue 的 <transition> / <transition-group> 按 name 自动挂载。
+// 类名必须与组件里写的 name 对应，对不上不会报错、只是动画静默失效：
+//   fade           通用淡入淡出（当前业务代码未直接引用，留作备用）
+//   fade-transform 主内容区路由切换，见 layout/components/AppMain.vue
+//   breadcrumb     面包屑项增删，见 components/Breadcrumb 的 transition-group
+// 注意：Vue 3 把进入始态类改名为 -enter-from（Vue 2 时代是 -enter），别写回旧名。
+// ============================================================================
+
 // global transition css
 
 /* fade */
@@ -6,6 +15,7 @@
   transition: opacity 0.28s;
 }
 
+// 淡入淡出：进入始态与离场终态都设为全透明，只改 opacity，不产生位移
 .fade-enter-from,
 .fade-leave-active {
   opacity: 0;
@@ -18,6 +28,8 @@
   transition: all .5s;
 }
 
+// 路由切换位移：新页面从左侧 30px 处滑入，旧页面向右滑出，
+// 配合 AppMain 上的 mode="out-in"，保证同一时刻只渲染一个页面
 .fade-transform-enter-from {
   opacity: 0;
   transform: translateX(-30px);
@@ -44,6 +56,7 @@
   transition: all .5s;
 }
 
+// 离场项脱离文档流，否则淡出期间仍占位，会让后续面包屑项抖动
 .breadcrumb-leave-active {
   position: absolute;
 }

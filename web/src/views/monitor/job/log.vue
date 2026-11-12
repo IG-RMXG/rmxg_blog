@@ -1,5 +1,6 @@
 <template>
    <div class="app-container">
+      <!-- 搜索区：任务名 / 任务组 / 执行状态（sys_common_status）/ 执行时间区间 -->
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
          <el-form-item label="任务名称" prop="jobName">
             <el-input
@@ -56,6 +57,7 @@
          </el-form-item>
       </el-form>
 
+      <!-- 工具栏：删除选中 / 清空全部 / 导出 / 关闭返回任务列表 -->
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
             <el-button
@@ -96,6 +98,7 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <!-- 日志列表：按 jobLogId 倒序；执行状态用 sys_common_status 字典渲染 -->
       <el-table v-loading="loading" :data="jobLogList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="日志编号" width="80" align="center" prop="jobLogId" />
@@ -124,6 +127,7 @@
          </el-table-column>
       </el-table>
 
+      <!-- 分页：与查询条件共用 queryParams；时间区间由 addDateRange 另拼进 params -->
       <pagination
          v-show="total > 0"
          :total="total"
@@ -157,6 +161,7 @@
                   </el-form-item>
                </el-col>
                <el-col :span="24">
+                  <!-- 只有失败（status=1）的日志才有异常堆栈，成功时该字段为空 -->
                   <el-form-item label="异常信息：" v-if="form.status == 1">{{ form.exceptionInfo }}</el-form-item>
                </el-col>
             </el-row>
@@ -171,22 +176,36 @@
 </template>
 
 <script setup name="JobLog">
+/*
+ * 定时任务调度日志（入口：任务列表「日志」按钮 → /monitor/job-log/index/:jobId）。
+ *
+ * 带 jobId 进入时先查任务详情回填任务名/组名再查日志；从菜单直接进入（jobId=0 或为空）则查全量。
+ * 接口：@/api/monitor/jobLog（列表/删除/清空），任务详情复用 @/api/monitor/job。
+ * 字典：sys_common_status（'0'=成功 '1'=失败）、sys_job_group。
+ * 权限点：monitor:job:remove（删除/清空）、monitor:job:export、monitor:job:query。
+ */
 import { getJob } from "@/api/monitor/job"
 import { listJobLog, delJobLog, cleanJobLog } from "@/api/monitor/jobLog"
 
 const { proxy } = getCurrentInstance()
+// 字典：sys_common_status 是执行结果（0 成功 / 1 失败），sys_job_group 用于展示与过滤任务组
 const { sys_common_status, sys_job_group } = proxy.useDict("sys_common_status", "sys_job_group")
 
+// ===== 列表与弹窗状态 =====
 const jobLogList = ref([])
 const open = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
+// multiple 控制「删除」按钮：没有勾选任何日志时为 true（按钮禁用）
 const multiple = ref(true)
 const total = ref(0)
+// 执行时间区间，查询前由 proxy.addDateRange 展开成 beginTime / endTime
 const dateRange = ref([])
+// 路由参数里带来源任务 id（从任务列表跳转时写入）
 const route = useRoute()
 
+// 表单与查询条件；queryParams 里的 dictName/dictType 是复制模板遗留字段，接口不消费
 const data = reactive({
   form: {},
   queryParams: {
@@ -198,9 +217,11 @@ const data = reactive({
   }
 })
 
+// data 里并没有 rules（本页无表单校验），解构出的 rules 为 undefined，模板未使用故无影响
 const { queryParams, form, rules } = toRefs(data)
 
 /** 查询调度日志列表 */
+// 查询前把 dateRange 摊平成 beginTime/endTime；pageNum/pageSize 随 queryParams 一起交给后端 PageHelper
 function getList() {
   loading.value = true
   listJobLog(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
@@ -211,6 +232,8 @@ function getList() {
 }
 
 // 返回按钮
+// 用 $tab.closeOpenPage 关掉当前 tags-view 标签并跳回任务列表，而不是 router.back()：
+// 从菜单直接进入时没有历史记录，这样两种入口都能正确返回
 function handleClose() {
   const obj = { path: "/monitor/job" }
   proxy.$tab.closeOpenPage(obj)
@@ -223,6 +246,7 @@ function handleQuery() {
 }
 
 /** 重置按钮操作 */
+// 时间区间不在表单里，resetForm 清不到，必须单独清空后再查询
 function resetQuery() {
   dateRange.value = []
   proxy.resetForm("queryRef")
@@ -236,12 +260,14 @@ function handleSelectionChange(selection) {
 }
 
 /** 详细按钮操作 */
+// 直接复用列表行数据，不再请求接口：行里已含详情所需的全部字段
 function handleView(row) {
   open.value = true
   form.value = row
 }
 
 /** 删除按钮操作 */
+// 按钮在工具栏上（不传 row），删除的是勾选的 ids
 function handleDelete(row) {
   proxy.$modal.confirm('是否确认删除调度日志编号为"' + ids.value + '"的数据项?').then(function () {
     return delJobLog(ids.value)
@@ -252,6 +278,7 @@ function handleDelete(row) {
 }
 
 /** 清空按钮操作 */
+// 整表物理删除且不可恢复，所以必须二次确认
 function handleClean() {
   proxy.$modal.confirm("是否确认清空所有调度日志数据项?").then(function () {
     return cleanJobLog()
@@ -262,12 +289,14 @@ function handleClean() {
 }
 
 /** 导出按钮操作 */
+// 导出走 proxy.download：GET schedule/job/log/export 直接下载 xlsx；文件名带时间戳避免覆盖
 function handleExport() {
   proxy.download("schedule/job/log/export", {
     ...queryParams.value,
   }, `job_log_${new Date().getTime()}.xlsx`)
 }
 
+// 页面初始化：带 jobId 时先取任务信息回填过滤条件再查日志；jobId 为 0/空表示从菜单直接进入
 (() => {
   const jobId = route.params && route.params.jobId
   if (jobId !== undefined && jobId != 0) {

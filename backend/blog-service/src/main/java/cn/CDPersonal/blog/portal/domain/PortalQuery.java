@@ -10,6 +10,9 @@ package cn.CDPersonal.blog.portal.domain;
  *   - orderBy：latest（默认）/ hot（按浏览量）/ comments（按评论数）
  *
  * 分页不走这个对象：PageHelper 直接在 PageUtils.startPage() 里读 request 的 pageNum/pageSize。
+ *
+ * 字段全部可空：为 null 时不参与筛选；keyword / month 额外要求非空串，空串等同于不筛选。
+ * orderBy 只认识 hot / comments 两个字面量，其余值（含乱码、注入串）都落到默认的置顶 + 最新排序。
  */
 public class PortalQuery {
 

@@ -39,6 +39,7 @@ public class SysConfigService {
         return configMapper.selectConfigById(configId);
     }
 
+    // 复用 checkConfigKeyUnique 的查询：config_key 唯一，多取一列即可，无需另写 SQL。
     /** 按参数键名取参数值，键名不存在返回 null */
     public String selectConfigValueByKey(String configKey) {
         SysConfig config = configMapper.checkConfigKeyUnique(configKey);
@@ -74,6 +75,7 @@ public class SysConfigService {
         return null;
     }
 
+    /** 新增参数：不区分是否内置，config_type 原样写入；"内置"只在删除时参与判定 */
     @Transactional
     public int insertConfig(SysConfig config) {
         return configMapper.insertConfig(config);
@@ -84,6 +86,7 @@ public class SysConfigService {
         return configMapper.updateConfig(config);
     }
 
+    /** 批量物理删除；本方法不判断内置参数，调用方必须先过 findUndeletableConfig */
     @Transactional
     public int deleteConfigByIds(Long[] configIds) {
         return configMapper.deleteConfigByIds(configIds);

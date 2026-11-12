@@ -16,6 +16,8 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public class SysConfig extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 当前没有参数缓存：改值后立即生效，controller 的 refreshCache 只返回成功，不会刷新或推送任何东西。
+
     /** 参数主键 */
     @Excel(name = "参数主键", cellType = Excel.ColumnType.NUMERIC)
     private Long configId;
@@ -24,6 +26,7 @@ public class SysConfig extends BaseEntity {
     @Excel(name = "参数名称")
     private String configName;
 
+    // configKey 全局唯一（checkConfigKeyUnique）；业务按 key 取值，改名等于换参数，旧调用方会拿不到值
     /** 参数键名 */
     @Excel(name = "参数键名")
     private String configKey;
@@ -32,6 +35,7 @@ public class SysConfig extends BaseEntity {
     @Excel(name = "参数键值")
     private String configValue;
 
+    // 除 'Y' 外，config_id 小于 100 的初始化数据同样不允许删除（见 SysConfigService.findUndeletableConfig）
     /** 系统内置（Y是 N否）；为 Y 的参数不允许删除 */
     @Excel(name = "系统内置", readConverterExp = "Y=是,N=否")
     private String configType;

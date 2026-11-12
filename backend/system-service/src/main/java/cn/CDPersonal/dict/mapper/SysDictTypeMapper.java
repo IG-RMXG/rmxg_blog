@@ -11,6 +11,14 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 字典类型 Mapper（sys_dict_type）。
+ *
+ * 表没有逻辑删除列，deleteDictTypeByIds 是物理删除；调用方需先确认该类型
+ * 是否还被 sys_dict_data 引用，否则会留下挂在不存在类型上的字典项。
+ * 列表按 dict_id 倒序（新建的在前），分页由 controller 在查询前调用 startPage() 开启。
+ * dict_type 在库上有唯一索引，checkDictTypeUnique 只能挡住常规重复，并发插入仍可能撞索引。
+ */
 @Mapper
 public interface SysDictTypeMapper {
 

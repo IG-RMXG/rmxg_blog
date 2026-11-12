@@ -60,6 +60,7 @@ public class SysConfigController extends BaseController {
         return ResponseVO.success(configService.selectConfigById(configId));
     }
 
+    /** 新增参数：configType 未传时默认 "N"（非内置）；内置参数在库里约定为 "Y" */
     @PostMapping
     public ResponseVO<Void> add(@Valid @RequestBody SysConfig config) {
         if (!configService.checkConfigKeyUnique(config)) {
@@ -75,6 +76,7 @@ public class SysConfigController extends BaseController {
                 : ResponseVO.error(ResponseStatus.INTERNAL_SERVER_ERROR.getCode(), "新增失败");
     }
 
+    /** 修改参数：全量覆盖；config_key 一旦改变，按旧 key 取值的调用方会取到 null */
     @PutMapping
     public ResponseVO<Void> edit(@Valid @RequestBody SysConfig config) {
         if (!configService.checkConfigKeyUnique(config)) {
@@ -93,6 +95,7 @@ public class SysConfigController extends BaseController {
         return ResponseVO.success();
     }
 
+    /** 删除参数：先挑出第一个内置参数并拒绝整批删除，避免只删掉一半 */
     @DeleteMapping("/{configIds}")
     public ResponseVO<Void> remove(@PathVariable Long[] configIds) {
         SysConfig builtin = configService.findUndeletableConfig(configIds);

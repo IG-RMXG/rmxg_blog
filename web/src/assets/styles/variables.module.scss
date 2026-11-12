@@ -1,3 +1,15 @@
+// ============================================================================
+// 全局变量与主题单一来源（SCSS 变量 + CSS 变量 + 暗黑模式）
+//
+// 两种消费方式，改值时两边都要照顾到：
+// 1) SCSS 侧：其它样式文件 @use 本文件（as vars / as *），再用 vars.$xxx；
+// 2) JS 侧：Sidebar、Logo 等组件直接 import 本文件，取到下方 :export 块导出的键，
+//    用于计算侧边栏宽度、菜单文字颜色等内联样式。
+// 新增变量若要在 JS 里用到，必须同时在 :export 里补一行，否则 JS 侧拿不到。
+// 暗黑模式由 :root 提供默认值、html.dark 覆盖差异项，切换动作在
+// store/modules/settings.js（@vueuse/core 的 useDark → 给 <html> 加 class="dark"）。
+// ============================================================================
+
 // base color
 $blue: #324157;
 $light-blue: #333c46;
@@ -21,10 +33,15 @@ $menuLightText: #303133;
 $menuLightActiveText: #409EFF;
 
 // 基础变量
+// 侧边栏宽度两处并存：$base-sidebar-width 给 sidebar.scss 做布局计算，
+// $sideBarWidth 经 :export 交给 JS（收起/展开时改 margin-left）。
+// 两个值必须保持一致，调整宽度时一起改，否则侧栏与内容区会错位。
 $base-sidebar-width: 200px;
 $sideBarWidth: 200px;
 
 // 菜单暗色变量
+// 与上方"默认主题变量"取值重复，但用途不同：上一组经 :export 交给 JS，
+// 这一组供 sidebar.scss 计算菜单/子菜单底色，调主题色时两处需同步。
 $base-menu-color: #bfcbd9;
 $base-menu-color-active: #f4f4f5;
 $base-menu-background: #304156;
@@ -38,6 +55,8 @@ $--color-warning: #E6A23C;
 $--color-danger: #F56C6C;
 $--color-info: #909399;
 
+// CSS Modules 命名导出：这里的 key 会原样成为 JS 侧 import 对象的属性名，
+// 值由 Sass 编译成字符串，供布局组件做内联样式与尺寸计算。
 :export {
   menuText: $menuText;
   menuActiveText: $menuActiveText;
@@ -66,6 +85,8 @@ $--color-info: #909399;
 }
 
 // CSS变量定义
+// 运行时变量：组件用 var(--xxx) 读取；这里给的是亮色模式默认值，
+// 暗黑模式只在下方 html.dark 中覆盖有差异的项，不必重复全部声明。
 :root {
   /* 亮色模式变量 */
   --sidebar-bg: #{$menuBg};
@@ -81,6 +102,9 @@ $--color-info: #909399;
 }
 
 // 暗黑模式变量
+// 选择器 html.dark 由 @vueuse/core 的 useDark 切换（同时把偏好写入 localStorage
+// 的 vueuse-color-scheme）。前半段覆盖 Element Plus 自己的 --el-* 变量，
+// 后半段是与组件库变量无关的组件级补丁（侧栏、表格、树、下拉、引用块、splitpanes）。
 html.dark {
   /* 默认通用 */
   --el-bg-color: #141414;

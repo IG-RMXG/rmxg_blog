@@ -12,6 +12,8 @@ import java.util.Date;
 public class SysJobLog extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 只增不改；列表按 job_log_id 倒序。start/end 由写入方设置，插入时另写 create_time = NOW()。
+
     private Long jobLogId;
     private String jobName;
     private String jobGroup;
@@ -20,6 +22,7 @@ public class SysJobLog extends BaseEntity {
     private String jobMessage;
     /** 执行状态 0正常 1失败 */
     private String status;
+    // 仅失败（status=1）时有值，成功时为 null；内容是异常描述文本，不是结构化字段
     /** 异常信息 */
     private String exceptionInfo;
 

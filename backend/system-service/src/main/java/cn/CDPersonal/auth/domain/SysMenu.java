@@ -16,14 +16,20 @@ public class SysMenu implements Serializable {
     private Long parentId;
     private String orderNum;
     private String path;
+    /** 前端组件路径，如 system/user/index；目录节点的入库值会被 SysMenuService 改写成 Layout/ParentView */
     private String component;
     private String query;
     private String isFrame;
     private String isCache;
+    /** 菜单类型：M=目录、C=菜单(页面)、F=按钮(仅作权限点，不参与路由) */
     private String menuType;
+    /** 显示状态：0=显示、1=隐藏 */
     private String visible;
+    /** 菜单状态：0=正常、其余(1=停用)不参与路由查询 */
     private String status;
+    /** 权限标识，如 system:user:list；前端 v-hasPermi 指令按它判断 */
     private String perms;
+    /** 菜单图标（前端图标库的类名） */
     private String icon;
     /** 仅用于组装树，不入库 */
     private java.util.List<SysMenu> children;

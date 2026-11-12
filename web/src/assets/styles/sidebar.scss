@@ -1,7 +1,19 @@
+// ============================================================================
+// 侧边栏（layout/components/Sidebar）与主内容区的联动布局。
+//
+// 形态由 layout 给 #app 追加的 class 决定，几种状态可叠加：
+//   默认              展开：侧栏 200px（vars.$base-sidebar-width），主内容 margin-left 同值
+//   .hideSidebar      收起：侧栏 54px（只剩图标），主内容 margin-left 同步改为 54px
+//   .mobile           移动端：侧栏 fixed + transform 平移，收起时整体移出视口，主内容不留白
+// .withoutAnimation 由布局在初始化等场景临时添加，用来关掉过渡，避免首屏"滑一下"。
+// 侧栏 z-index:1001，高于顶部导航与遮罩层，调整页面层级时注意不要与之冲突。
+// ============================================================================
 @use './variables.module.scss' as vars;
 
 #app {
 
+  // 主内容区：左侧留出侧栏宽度；margin-left 的 .28s 过渡必须与侧栏 width 过渡时长一致，
+  // 否则收起/展开时会出现侧栏先到位、内容区后跟上的错位感
   .main-container {
     min-height: 100%;
     transition: margin-left .28s;
@@ -9,10 +21,12 @@
     position: relative;
   }
 
+  // 布局级开关：整个侧栏隐藏（主内容同时取消左边距），用于不需要导航的场景
   .sidebarHide {
     margin-left: 0!important;
   }
 
+  // 侧栏主体：fixed 定位并纵向撑满视口，font-size:0 用来消除行内块之间的空隙
   .sidebar-container {
     transition: width 0.28s;
     width: vars.$base-sidebar-width !important;
@@ -44,6 +58,7 @@
       height: 100%;
     }
 
+    // 有 Logo 时让滚动区让出 50px，否则菜单会把固定在顶部的 Logo 顶出可视区
     &.has-logo {
       .el-scrollbar {
         height: calc(100% - 50px);
@@ -81,6 +96,7 @@
     }
 
     // menu hover
+    // 一级菜单与子菜单标题的 hover 统一用 6% 半透明黑，亮/暗两种主题下都有可见反馈
     .sub-menu-title-noDropdown,
     .el-sub-menu__title {
       &:hover {
@@ -111,6 +127,7 @@
     }
   }
 
+  // 收起态（54px）：只留图标，隐藏文字与箭头；菜单名由 el-tooltip 悬浮补足
   .hideSidebar {
     .sidebar-container {
       width: 54px !important;
@@ -136,6 +153,7 @@
     .el-sub-menu {
       overflow: hidden;
 
+      // 收起时子菜单标题压缩成纯图标：内边距清零，图标左移 20px 居中
       &>.el-sub-menu__title {
         padding: 0 !important;
 
@@ -173,6 +191,8 @@
   }
 
   // mobile responsive
+  // 移动端：侧栏改为 fixed + transform 平移，收起时整体移出视口并禁用指针事件，
+  // 主内容不再留白（margin-left:0）。是否进入 .mobile 由 layout 依据视口宽度判定
   .mobile {
     .main-container {
       margin-left: 0px;
@@ -192,6 +212,7 @@
     }
   }
 
+  // 关闭过渡：初始化与窗口尺寸变化时避免侧栏、内容区"滑一下"
   .withoutAnimation {
 
     .main-container,
@@ -202,6 +223,7 @@
 }
 
 // when menu collapsed
+// 折叠后悬浮弹出的二级菜单：限高 100vh 并自绘滚动条，菜单项过多时不会溢出视口
 .el-menu--vertical {
   &>.el-menu {
     .svg-icon {

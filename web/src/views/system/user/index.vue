@@ -1,8 +1,14 @@
 <template>
   <div class="app-container">
+    <!--
+      用户管理列表页：左侧部门树 + 右侧用户表格。
+      左侧点部门即按 deptId 过滤（后端会带上该部门的子部门），右侧沿用 RuoYi 标准 CRUD 区块。
+      接口前缀 /system/user，权限点：system:user:add / edit / remove / import / export / resetPwd。
+    -->
     <el-row :gutter="20">
       <splitpanes :horizontal="appStore.device === 'mobile'" class="default-theme">
         <!--部门数据-->
+        <!-- 部门树：名称过滤由 watch(deptName) 驱动，点击节点后按该部门过滤右侧列表 -->
         <pane size="16">
           <el-col>
             <div class="head-container">
@@ -16,6 +22,7 @@
         <!--用户数据-->
         <pane size="84">
           <el-col>
+            <!-- 查询区：用户名/手机号为模糊查询，状态精确匹配，创建时间由 dateRange 转成 beginTime/endTime -->
             <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
               <el-form-item label="用户名称" prop="userName">
                 <el-input v-model="queryParams.userName" placeholder="请输入用户名称" clearable style="width: 240px" @keyup.enter="handleQuery" />
@@ -37,6 +44,7 @@
               </el-form-item>
             </el-form>
 
+            <!-- 工具栏：按钮由 v-hasPermi 控制显隐；未选中一条/多条时「修改」「删除」置灰 -->
             <el-row :gutter="10" class="mb8">
               <el-col :span="1.5">
                 <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['system:user:add']">新增</el-button>
@@ -56,6 +64,7 @@
               <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" :columns="columns"></right-toolbar>
             </el-row>
 
+            <!-- 表格：列显隐由 columns + right-toolbar 控制；状态列的开关直接改库（'0' 正常 / '1' 停用） -->
             <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
               <el-table-column type="selection" width="50" align="center" />
               <el-table-column label="用户编号" align="center" key="userId" prop="userId" v-if="columns.userId.visible" />
@@ -78,6 +87,7 @@
                   <span>{{ parseTime(scope.row.createTime) }}</span>
                 </template>
               </el-table-column>
+              <!-- 操作列：userId=1 是超级管理员，四个入口都不展示（删除即使被绕过也会被后端整批拒绝） -->
               <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
                 <template #default="scope">
                   <el-tooltip content="修改" placement="top" v-if="scope.row.userId !== 1">
@@ -95,6 +105,7 @@
                 </template>
               </el-table-column>
             </el-table>
+            <!-- 分页：页码/每页条数直接挂在 queryParams 上，切换后重新拉列表 -->
             <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
           </el-col>
         </pane>
@@ -102,6 +113,10 @@
     </el-row>
 
     <!-- 添加或修改用户配置对话框 -->
+    <!--
+      新增与编辑共用本弹窗：编辑时回填 getUser 返回的 data，以及同层返回的 postIds/roleIds；
+      userName、password 只在新增时出现，因为修改接口不覆盖这两列。
+    -->
     <el-dialog :title="title" v-model="open" width="600px" append-to-body>
       <el-form :model="form" :rules="rules" ref="userRef" label-width="80px">
         <el-row>
@@ -190,6 +205,7 @@
 
     <!-- 用户导入对话框 -->
     <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
+      <!-- 手动上传（auto-upload=false）：先在前端校验扩展名再 submit，updateSupport 作为 query 参数带上 -->
       <el-upload ref="uploadRef" :limit="1" accept=".xlsx, .xls" :headers="upload.headers" :action="upload.url + '?updateSupport=' + upload.updateSupport" :disabled="upload.isUploading" :on-progress="handleFileUploadProgress" :on-success="handleFileSuccess" :on-change="handleFileChange" :on-remove="handleFileRemove" :auto-upload="false" drag>
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
@@ -214,6 +230,13 @@
 </template>
 
 <script setup name="User">
+/**
+ * 用户管理页面（/system/user）。
+ *
+ * 数据流：部门树提供 deptId 过滤维度，列表接口返回 { rows, total }；
+ * 新增/编辑共用 getUser（新增不传 id），响应是平铺的 { data, posts, roles, postIds, roleIds }。
+ * 权限点只控制前端入口，后端另有账号/手机/邮箱查重与「超级管理员 userId=1 不可删」等校验。
+ */
 import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user"
@@ -267,8 +290,10 @@ const columns = ref({
   createTime: { label: '创建时间', visible: true }
 })
 
+// 查询参数与弹窗表单放在同一个 reactive 里，再 toRefs 解构，保证模板中的双向绑定仍然响应式
 const data = reactive({
   form: {},
+  // 分页约定：pageNum 从 1 开始、pageSize 默认 10，后端 startPage() 只读取这两个字段
   queryParams: {
     pageNum: 1,
     pageSize: 10,
@@ -277,6 +302,8 @@ const data = reactive({
     status: undefined,
     deptId: undefined
   },
+  // 校验只做前端兜底：userName 仅新增时校验长度，是否重复由后端 checkUserNameUnique 判定；
+  // password 额外禁止 < > " ' \ | 等会被拼进 SQL/HTML 的字符
   rules: {
     userName: [{ required: true, message: "用户名称不能为空", trigger: "blur" }, { min: 2, max: 20, message: "用户名称长度必须介于 2 和 20 之间", trigger: "blur" }],
     nickName: [{ required: true, message: "用户昵称不能为空", trigger: "blur" }],
@@ -295,12 +322,14 @@ const filterNode = (value, data) => {
 }
 
 /** 根据名称筛选部门树 */
+// 输入即过滤、无防抖：filterNode 只做 label 子串匹配，清空输入等同于展示全部部门
 watch(deptName, val => {
   proxy.$refs["deptTreeRef"].filter(val)
 })
 
 /** 查询用户列表 */
 function getList() {
+  // 日期区间不进 queryParams：addDateRange 会把它展开成 beginTime/endTime 两个查询参数
   loading.value = true
   listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
     loading.value = false
@@ -311,6 +340,7 @@ function getList() {
 
 /** 查询部门下拉树结构 */
 function getDeptTree() {
+  // 同一份树数据两用：deptOptions 给左侧树（含停用部门），enabledDeptOptions 给表单下拉（剔除停用）
   deptTreeSelect().then(response => {
     deptOptions.value = response.data
     enabledDeptOptions.value = filterDisabledDept(JSON.parse(JSON.stringify(response.data)))
@@ -319,6 +349,7 @@ function getDeptTree() {
 
 /** 过滤禁用的部门 */
 function filterDisabledDept(deptList) {
+  // 递归剔除 disabled 部门及其整棵子树；入参必须是深拷贝，否则会改坏左侧树的原始数据
   return deptList.filter(dept => {
     if (dept.disabled) {
       return false
@@ -332,6 +363,7 @@ function filterDisabledDept(deptList) {
 
 /** 节点单击事件 */
 function handleNodeClick(data) {
+  // 换部门必须回到第 1 页，否则可能停在超出新结果集的页码上显示空表
   queryParams.value.deptId = data.id
   handleQuery()
 }
@@ -347,12 +379,14 @@ function resetQuery() {
   dateRange.value = []
   proxy.resetForm("queryRef")
   queryParams.value.deptId = undefined
+  // 树的高亮是独立状态：resetForm 只清表单，必须手动取消选中，否则看起来仍在按部门过滤
   proxy.$refs.deptTreeRef.setCurrentKey(null)
   handleQuery()
 }
 
 /** 删除按钮操作 */
 function handleDelete(row) {
+  // 行内删除只传单个 userId，工具栏删除回退到多选 ids；含 userId=1 时后端整批拒绝
   const userIds = row.userId || ids.value
   proxy.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function () {
     return delUser(userIds)
@@ -364,6 +398,7 @@ function handleDelete(row) {
 
 /** 导出按钮操作 */
 function handleExport() {
+  // 只带 queryParams：dateRange 展开的 beginTime/endTime 不在这里，导出范围会比列表宽
   proxy.download("system/user/export", {
     ...queryParams.value,
   },`user_${new Date().getTime()}.xlsx`)
@@ -371,6 +406,7 @@ function handleExport() {
 
 /** 用户状态修改  */
 function handleStatusChange(row) {
+  // el-switch 已先改本地值（乐观更新），取消或请求失败时在 catch 里把状态翻回去
   let text = row.status === "0" ? "启用" : "停用"
   proxy.$modal.confirm('确认要"' + text + '""' + row.userName + '"用户吗?').then(function () {
     return changeUserStatus(row.userId, row.status)
@@ -382,6 +418,7 @@ function handleStatusChange(row) {
 }
 
 /** 更多操作 */
+// 历史入口：早期用行内「更多」下拉分发，现在模板改成独立图标按钮，本函数当前没有调用方
 function handleCommand(command, row) {
   switch (command) {
     case "handleResetPwd":
@@ -403,6 +440,7 @@ function handleAuthRole(row) {
 
 /** 重置密码按钮操作 */
 function handleResetPwd(row) {
+  // 管理员重置不需要旧密码；长度与非法字符规则跟新增表单一致，成功后提示里会回显明文新密码
   proxy.$prompt('请输入"' + row.userName + '"的新密码', "提示", {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
@@ -467,6 +505,7 @@ const handleFileSuccess = (response, file, fileList) => {
 
 /** 提交上传文件 */
 function submitFileForm() {
+  // accept 只是浏览器的选择过滤，拖拽仍可能带进别的文件，所以提交前再按扩展名判一次
   const file = upload.selectedFile
   if (!file || file.length === 0 || !file.name.toLowerCase().endsWith('.xls') && !file.name.toLowerCase().endsWith('.xlsx')) {
     proxy.$modal.msgError("请选择后缀为 “xls”或“xlsx”的文件。")
@@ -477,6 +516,7 @@ function submitFileForm() {
 
 /** 重置操作表单 */
 function reset() {
+  // 新增默认启用（status='0'）；岗位/角色给空数组表示不分配
   form.value = {
     userId: undefined,
     deptId: undefined,
@@ -491,6 +531,7 @@ function reset() {
     postIds: [],
     roleIds: []
   }
+  // 先重置数据再清校验状态，否则上次的红色报错会残留到下次打开弹窗
   proxy.resetForm("userRef")
 }
 
@@ -503,11 +544,13 @@ function cancel() {
 /** 新增按钮操作 */
 function handleAdd() {
   reset()
+  // 新增也调 getUser()（不传 id）：只为拿到可选的岗位/角色，返回的 data 是空对象
   getUser().then(response => {
     postOptions.value = response.posts
     roleOptions.value = response.roles
     open.value = true
     title.value = "添加用户"
+    // 密码预填系统参数 sys.user.initPassword，管理员可改；留空时后端仍会回落成默认密码
     form.value.password = initPassword.value
   })
 }
@@ -515,6 +558,7 @@ function handleAdd() {
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset()
+  // 编辑回显：用户字段在 data 里，已选岗位/角色是同层的 postIds/roleIds，需要再赋回表单
   const userId = row.userId || ids.value
   getUser(userId).then(response => {
     form.value = response.data
@@ -530,6 +574,7 @@ function handleUpdate(row) {
 
 /** 提交按钮 */
 function submitForm() {
+  // 以 form.userId 是否存在区分新增/修改；账号、手机、邮箱查重失败由后端返回 500 文案
   proxy.$refs["userRef"].validate(valid => {
     if (valid) {
       if (form.value.userId != undefined) {
@@ -550,6 +595,7 @@ function submitForm() {
 }
 
 onMounted(() => {
+  // 首屏并行做三件事：部门树、第一页列表、新增表单的默认密码配置
   getDeptTree()
   getList()
   proxy.getConfigKey("sys.user.initPassword").then(response => {

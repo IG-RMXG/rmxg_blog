@@ -65,11 +65,16 @@ public class SysMenuController {
         return ResponseVO.success(menuManagementService.selectMenuList(query));
     }
 
+    /** 单个菜单详情；menuId 不存在时 data 为 null，调用方需自行判空 */
     @GetMapping("/{menuId}")
     public ResponseVO<SysMenu> getInfo(@PathVariable Long menuId) {
         return ResponseVO.success(menuManagementService.selectMenuById(menuId));
     }
 
+    /**
+     * 新增菜单。同名直接拒绝；createBy 取当前登录人而不信任前端传值，
+     * 缺省字段（parentId/orderNum/isFrame 等）由 applyDefaults 补齐后再入库。
+     */
     @PostMapping
     public ResponseVO<Void> add(@RequestBody SysMenu menu) {
         if (!menuManagementService.checkMenuNameUnique(menu)) {
@@ -82,6 +87,10 @@ public class SysMenuController {
                 : ResponseVO.error(500, "新增失败");
     }
 
+    /**
+     * 修改菜单。除重名外还禁止把自身设为上级（否则树成环，前端建树时无法渲染）。
+     * updateBy 同样取当前登录人。
+     */
     @PutMapping
     public ResponseVO<Void> edit(@RequestBody SysMenu menu) {
         if (!menuManagementService.checkMenuNameUnique(menu)) {
@@ -97,6 +106,10 @@ public class SysMenuController {
                 : ResponseVO.error(500, "修改失败");
     }
 
+    /**
+     * 删除菜单。两道校验顺序固定：先查子菜单、再查角色授权，
+     * 提示语与 RuoYi 前端约定一致，前端直接弹后端 message。
+     */
     @DeleteMapping("/{menuId}")
     public ResponseVO<Void> remove(@PathVariable Long menuId) {
         if (menuManagementService.hasChildren(menuId)) {

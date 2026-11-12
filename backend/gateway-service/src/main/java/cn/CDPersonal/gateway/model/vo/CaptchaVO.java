@@ -5,6 +5,10 @@ import java.io.Serializable;
 
 /**
  * CaptchaVO 验证码返回对象
+ *
+ * <p>前端拿到后：用 originalImageBase64 作底图、jigsawImageBase64 作可拖动的拼图块，
+ * 按 jigsawY 定位拼图块的初始高度；校验时必须原样回传 token（Redis key，5 分钟内有效）。
+ * 注意这里不含答案 x，x 只存在于服务端缓存里。
  * @author CDPersonal
  * @date 2025/10/23
  */

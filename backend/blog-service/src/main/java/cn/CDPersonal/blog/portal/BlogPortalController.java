@@ -24,6 +24,9 @@ import java.util.List;
  * 面向游客开放，网关只需原有的 /blog/** 转发规则即可命中，不需要额外配置。
  * 路径刻意与需要登录的 /blog/article/** 分开，避免以后误改鉴权时把公开接口带偏。
  * 这里没有任何 POST/PUT/DELETE：评论、写作一律走需要登录的既有接口。
+ *
+ * 返回约定：单条/列表类查询用 ResponseVO.success 包一层；分页列表用 TableDataInfo（含 total/rows）。
+ * 只有文章详情在「不存在或未发布」时返回 code=404，其余接口查不到数据时返回空数组而不是错误。
  */
 @RestController
 @RequestMapping("/blog/public")
@@ -53,6 +56,7 @@ public class BlogPortalController {
     }
 
     /** 文章详情（浏览量 +1），只返回已发布文章 */
+    // 未发布与不存在统一回 404 和同一句提示，避免公开接口被用来探测草稿是否存在。
     @GetMapping("/articles/{articleId}")
     public ResponseVO<BlogArticle> article(@PathVariable Long articleId) {
         BlogArticle article = portalService.viewArticle(articleId);

@@ -11,6 +11,13 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 字典数据 Mapper（sys_dict_data）。
+ *
+ * 字典项按 dict_sort 升序；同级排序值相同时顺序由数据库决定，不保证稳定。
+ * 按类型下发给前端时额外要求 status = '0'（0 正常 / 1 停用），停用的项不会出现在下拉里。
+ * 与 sys_dict_type 只靠 dict_type 字符串关联，没有外键，类型改名必须同步本表。
+ */
 @Mapper
 public interface SysDictDataMapper {
 

@@ -13,12 +13,24 @@ import java.util.concurrent.TimeUnit;
 /**
  * spring redis 工具类
  * 
+ * <p>本类只是对 RedisTemplate 的薄封装，不做异常捕获与重试：Redis 不可用时异常直接抛给调用方，
+ * 由业务自己决定降级还是报错。key 统一为 String，value 的序列化规则见 RedisConfiguration。
+ *
+ * <p>两个容易踩的边界：
+ * <ul>
+ *   <li>{@link #keys(String)} 与 {@link #vagueDel(Object)} 走的是 Redis KEYS 命令，O(N) 且阻塞单线程，
+ *       只适用于本地/数据量可控的场景，不要放在接口热路径上。</li>
+ *   <li>不带 timeout 的 setCacheObject 写入的是永久键，业务缓存应优先用带过期的重载。</li>
+ * </ul>
+ *
  * @author ruoyi
  **/
 @SuppressWarnings(value = { "unchecked", "rawtypes" })
 @Component
 public class RedisService
 {
+    // 原始类型（无泛型参数）沿用 RuoYi 的写法，配合类上的 @SuppressWarnings 使用；
+    // 外部读写请走下面的封装方法，避免调用方各自强转
     public final RedisTemplate redisTemplate;
 
 
@@ -83,6 +95,7 @@ public class RedisService
      */
     public long getExpire(final String key)
     {
+        // 返回 -1 表示 key 存在但未设置过期时间，-2 表示 key 不存在，其它值为剩余秒数
         return redisTemplate.getExpire(key);
     }
 
@@ -139,6 +152,7 @@ public class RedisService
      */
     public <T> long setCacheList(final String key, final List<T> dataList)
     {
+        // rightPushAll 是追加语义：对已存在的 key 再调一次会把新元素排在旧元素之后，不会覆盖
         Long count = redisTemplate.opsForList().rightPushAll(key, dataList);
         return count == null ? 0 : count;
     }
@@ -273,6 +287,7 @@ public class RedisService
      * @param key 模糊删除key
      */
     public void vagueDel(Object key) {
+        // 先按前缀扫全库再批量删，两次网络往返之间可能有新 key 写入而不在删除范围内
         Set<Object> keys = redisTemplate.keys(key + "*");
         redisTemplate.delete(keys);
     }

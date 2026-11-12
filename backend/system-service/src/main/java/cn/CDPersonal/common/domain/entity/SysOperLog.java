@@ -13,6 +13,9 @@ import java.util.Date;
 public class SysOperLog extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 读模型 + 写入载体：落库时 oper_time 由 SQL 的 NOW() 覆盖，调用方设置的值不生效。
+
+    // 自增主键；列表按 oper_id 倒序，最新日志在最前
     private Long operId;
     /** 操作模块 */
     private String title;
@@ -34,6 +37,7 @@ public class SysOperLog extends BaseEntity {
     private String operIp;
     /** 操作地点 */
     private String operLocation;
+    // operParam 与 jsonResult 都是 JSON 快照字符串，原样存库、原样返回，未做脱敏；排障时不要把它当作可稳定反序列化的结构
     /** 请求参数 */
     private String operParam;
     /** 返回参数 */

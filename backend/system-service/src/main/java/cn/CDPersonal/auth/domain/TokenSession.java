@@ -15,6 +15,7 @@ public class TokenSession implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** 关联 sys_user.user_id；为 null 时视为无效会话（getLoginUser 会直接返回 null） */
     private Long userId;
     /** 登录时间戳（毫秒） */
     private Long loginTime;

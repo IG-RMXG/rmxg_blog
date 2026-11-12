@@ -1,12 +1,14 @@
 <template>
   <div class="wscn-http404-container">
     <div class="wscn-http404">
+      <!-- 404 主图 + 三朵云：同一张云图用 .left/.mid/.right 定位并以不同延迟飘过 -->
       <div class="pic-404">
         <img class="pic-404__parent" src="@/assets/404_images/404.png" alt="404">
         <img class="pic-404__child left" src="@/assets/404_images/404_cloud.png" alt="404">
         <img class="pic-404__child mid" src="@/assets/404_images/404_cloud.png" alt="404">
         <img class="pic-404__child right" src="@/assets/404_images/404_cloud.png" alt="404">
       </div>
+      <!-- 文案区：oops、提示标题、说明、返回首页，按 animation-delay 依次上滑入场 -->
       <div class="bullshit">
         <div class="bullshit__oops">
           404错误!
@@ -26,12 +28,18 @@
 </template>
 
 <script setup>
+/**
+ * 404 页面，由 router 的通配路由 /:pathMatch(.*)* 兜底渲染（hidden，不进菜单）。
+ * 纯展示页，不请求接口；「返回首页」指向后台 /index。
+ */
+// 模板中的提示标题统一取这里的 message，改文案只需改这一处（当前为固定值）
 let message = computed(() => {
   return '找不到网页！'
 })
 </script>
 
 <style lang="scss" scoped>
+/* 绝对定位 + translate(-50%,-50%) 居中；top 取 40% 让内容视觉重心略高于页面正中 */
 .wscn-http404-container{
   transform: translate(-50%,-50%);
   position: absolute;
@@ -86,6 +94,7 @@ let message = computed(() => {
         animation-fill-mode: forwards;
         animation-delay: 1s;
       }
+      /* 三朵云从右上飘到左下并淡出：三套 keyframes 的起止坐标与 animation-delay 共同控制错落效果 */
       @keyframes cloudLeft {
         0% {
           top: 17px;

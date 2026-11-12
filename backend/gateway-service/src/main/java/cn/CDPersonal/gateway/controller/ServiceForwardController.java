@@ -97,6 +97,8 @@ public class ServiceForwardController {
     @Value("${gateway.forward.uat-service:}")
     private String uatServiceBase;
 
+    // 注意：RestClient.create() 用的是默认 RequestFactory，没有连接/读取超时；
+    // 下游卡住时请求会一直占用本服务的容器线程，排查「网关假死」时先看这里
     private final RestClient restClient = RestClient.create();
 
     @RequestMapping(

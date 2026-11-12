@@ -1,5 +1,14 @@
+// Element Plus 消息/弹窗的统一封装（$modal），把标题与按钮文案固定成中文，避免各页面重复写 options。
+// 分四类：
+//   msg* / notify*   轻提示，无返回值；
+//   alert*           只有一个「确定」的强提示；
+//   confirm / prompt 返回 Promise，用户点「取消」或关闭时 reject，
+//                    所以调用方必须 catch（常写 .catch(() => {})），否则控制台会出现未捕获异常；
+//   loading / closeLoading 全屏遮罩，单例，必须成对调用。
 import { ElMessage, ElMessageBox, ElNotification, ElLoading } from 'element-plus'
 
+// 遮罩单例：后一次 loading() 会覆盖前一次的引用，前一个实例就再也关不掉了，
+// 所以约定同一时刻只开一个遮罩。
 let loadingInstance
 
 export default {

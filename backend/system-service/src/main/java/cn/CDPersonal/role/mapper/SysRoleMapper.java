@@ -26,6 +26,10 @@ import java.util.List;
 @Mapper
 public interface SysRoleMapper {
 
+    /**
+     * 角色列表：只查 del_flag='0'，按 role_sort、role_id 两级升序，保证同排序值下顺序稳定。
+     * 名称 / 权限字符是模糊匹配，status 精确匹配，创建时间走 params.beginTime / endTime 区间。
+     */
     @Select("""
             <script>
             SELECT role_id, role_name, role_key, role_sort, data_scope,
@@ -55,6 +59,7 @@ public interface SysRoleMapper {
             """)
     List<SysRole> selectRoleList(SysRole query);
 
+    /** 按主键查角色；已软删（del_flag='2'）的记录查不到，返回 null */
     @Select("""
             SELECT role_id, role_name, role_key, role_sort, data_scope,
                    menu_check_strictly, dept_check_strictly, status, del_flag,
@@ -89,6 +94,9 @@ public interface SysRoleMapper {
             """)
     SysRole checkRoleKeyUnique(@Param("roleKey") String roleKey);
 
+    /**
+     * 新增角色主表，del_flag 固定写 '0'；roleId 由自增回填，供随后写 sys_role_menu 使用。
+     */
     @Insert("""
             INSERT INTO sys_role
               (role_name, role_key, role_sort, data_scope, menu_check_strictly,
@@ -100,6 +108,9 @@ public interface SysRoleMapper {
     @Options(useGeneratedKeys = true, keyProperty = "roleId")
     int insertRole(SysRole role);
 
+    /**
+     * 修改角色主表：不触碰 del_flag / create_by / create_time，update_time 由 NOW() 生成。
+     */
     @Update("""
             UPDATE sys_role
             SET role_name = #{roleName},
@@ -116,6 +127,8 @@ public interface SysRoleMapper {
             """)
     int updateRole(SysRole role);
 
+    // 数组参数靠 @Param("array") 暴露给动态 SQL，下面 foreach 的 collection="array" 必须同名；
+    // 改名时两处要一起改，否则运行期会报参数找不到。
     /** 软删角色 */
     @Update("""
             <script>
@@ -167,6 +180,11 @@ public interface SysRoleMapper {
             """)
     int deleteRoleMenusByRoleIds(@Param("array") Long[] roleIds);
 
+    /**
+     * 批量写角色-菜单关系。普通 INSERT，重复调用会插入重复行，
+     * 所以 service 里统一"先 deleteRoleMenusByRoleId 再插"。
+     * menuIds 为空时不要在调用方之外直接调，否则会拼出空 VALUES 语法错误。
+     */
     @Insert("""
             <script>
             INSERT INTO sys_role_menu (role_id, menu_id) VALUES

@@ -33,6 +33,7 @@ public class UserAuthRoleVO implements Serializable {
     /** 全部角色，每项带 flag = 该用户是否已分配 */
     private List<SysRole> roles = new ArrayList<>();
 
+    /** 服务端时间戳，字段名与 ResponseVO 对齐 */
     private Long timestamp;
 
     public UserAuthRoleVO() {
@@ -41,6 +42,7 @@ public class UserAuthRoleVO implements Serializable {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /** 组装成功响应；roles 为 null 时退化空列表，避免前端表格读到 null */
     public static UserAuthRoleVO success(SysUser user, List<SysRole> roles) {
         UserAuthRoleVO vo = new UserAuthRoleVO();
         vo.setUser(user);

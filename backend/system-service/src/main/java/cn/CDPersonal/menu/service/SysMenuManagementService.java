@@ -23,10 +23,12 @@ public class SysMenuManagementService {
         this.menuMapper = menuMapper;
     }
 
+    /** 管理页列表：不分页、不组装 children，返回扁平行，由前端 handleTree 建树 */
     public List<SysMenu> selectMenuList(SysMenu query) {
         return menuMapper.selectMenuList(query);
     }
 
+    /** 按 id 取单行菜单（不含子节点），编辑弹窗回填用 */
     public SysMenu selectMenuById(Long menuId) {
         return menuMapper.selectMenuById(menuId);
     }

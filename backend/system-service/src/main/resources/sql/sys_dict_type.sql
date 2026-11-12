@@ -14,6 +14,12 @@
  Date: 03/11/2025 20:09:00
 */
 
+-- 文件说明：从 ruoyi-vue 库（MySQL 8.0.43）导出的 Navicat dump，只含 sys_dict_type 的 DDL，
+-- 没有 USE 语句，手工执行前必须先切到目标库（应用实际连的库见 application.yml 的 SYSTEM_DB_URL）。
+-- docker/mysql/init/03_sys_dict_type.sql 是同一份结构加了 USE `system` 的初始化版，改表结构时两处要同步。
+-- 注意 DROP TABLE IF EXISTS 是破坏性操作：会清空现有字典类型，而 sys_dict_data 里引用它的记录会变成孤儿数据。
+-- 本文件不会被应用自动执行，只作建表参考与手工导入用。
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 

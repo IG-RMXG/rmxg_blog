@@ -17,12 +17,15 @@ import java.nio.file.Paths;
  */
 public final class UploadPathUtils {
 
+    /** 对外头像 URL 前缀；只写业务段（不带 context-path），WebMvcConfig 映射与上传接口共用 */
     public static final String AVATAR_URL_PREFIX = "/profile/avatar/";
 
     private UploadPathUtils() {
     }
 
     /** 上传根目录（绝对路径，已 normalize） */
+    // 每次调用都重读配置（不缓存），便于测试时用 -Dapp.upload.path 切换目录；
+    // normalize 后再返回，避免路径里残留多余的 ".."。
     public static Path uploadRoot() {
         String configured = System.getProperty("app.upload.path");
         if (configured == null || configured.isBlank()) {
@@ -40,11 +43,13 @@ public final class UploadPathUtils {
     }
 
     /** 头像目录的 file: URI，供 Spring 静态资源映射使用（必须是绝对路径） */
+    // URI 必须以 "/" 结尾，Spring 才会当成目录前缀；否则拼接时最后一段会被当作文件名。
     public static String avatarDirUri() {
         return avatarDir().toUri().toString();
     }
 
     /** 尽力创建头像目录；失败不抛，真正写文件时再报可读错误 */
+    // 幂等：目录已存在时 createDirectories 不报错，可在启动或每次上传前重复调用。
     public static void ensureAvatarDir() {
         try {
             Files.createDirectories(avatarDir());

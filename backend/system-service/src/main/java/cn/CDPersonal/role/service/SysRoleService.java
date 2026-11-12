@@ -74,6 +74,7 @@ public class SysRoleService {
         return rows;
     }
 
+    // 实际实现只重写主表与 sys_role_menu；sys_role_dept 由 updateRoleDataScope 单独维护。
     /** 修改角色，重写 sys_role_menu；dataScope='2' 时同时重写 sys_role_dept */
     @Transactional
     public int updateRole(SysRole role) {
@@ -159,6 +160,7 @@ public class SysRoleService {
         if (menus == null) {
             return nodes;
         }
+        // 先把菜单拍平成统一的 TreeSelect 节点，父子装配交给 TreeSelectUtils，避免再写一套树逻辑。
         for (SysMenu menu : menus) {
             nodes.add(TreeSelect.ofMenu(menu.getMenuId(), menu.getMenuName(), menu.getParentId()));
         }
@@ -218,11 +220,14 @@ public class SysRoleService {
     // ==================== 内部 ====================
 
     private void insertRoleMenu(Long roleId, Long[] menuIds) {
+        // 空数组表示"不授权任何菜单"：调用方已先删除旧关系，这里跳过插入即完成清空。
         if (menuIds != null && menuIds.length > 0) {
             roleMapper.batchInsertRoleMenus(roleId, menuIds);
         }
     }
 
+    // 新增和修改都会调用：roleSort=0、status=0（正常）、dataScope=1（全部数据权限）、
+    // menuCheckStrictly/deptCheckStrictly=true。修改时前端若没回传这些字段，会被重置成默认值。
     private void fillDefaults(SysRole role) {
         if (role.getRoleSort() == null) {
             role.setRoleSort(0);

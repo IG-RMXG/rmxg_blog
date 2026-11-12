@@ -1,4 +1,5 @@
 <template>
+  <!-- 登录页：账号密码 + 滑块拼图验证码，成功后按 ?redirect= 回跳；UAT 构建下额外提供免密快捷入口 -->
   <div class="login">
     <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
       <h3 class="title">{{ title }}</h3>
@@ -41,7 +42,9 @@
         </el-input>
       </el-form-item>
 
+      <!-- 记住密码：仅置位表单字段，真正写/读 Cookie 的是 performActualLogin() 与 getCookie() -->
       <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
+      <!-- 提交区：表单校验通过才去拉验证码，避免账号没填就白请求一张图 -->
       <el-form-item style="width:100%;">
         <el-button
             :loading="loading"
@@ -65,6 +68,7 @@
     </div>
   </div>
 
+  <!-- 滑块拼图验证码弹窗：宽度随原图尺寸动态计算，禁止点遮罩关闭，关闭动作统一走 handleCaptchaCancel 复位状态 -->
   <el-dialog
       v-model="showPuzzleCaptcha"
       :width="captchaImageWidth"
@@ -82,6 +86,7 @@
       </div>
     </template>
     <div class="puzzle-captcha-container">
+      <!-- 图片区：底图 + 拼图块叠加渲染，拼图块的 left 就是松手时提交给网关的 x 坐标 -->
       <div class="image-container">
         <div v-if="isImageLoading" class="loading-placeholder">
           <div class="spinner"></div>
@@ -112,6 +117,7 @@
           验证码图片未加载
         </div>
       </div>
+      <!-- 拖拽区：mousedown 后在 document 上监听 mousemove/mouseup，松手即把位移提交校验 -->
       <div class="slider-container">
         <div class="slider-track"
              :class="{ 'slider-track-active': isSliderActive }"
@@ -131,6 +137,12 @@
 </template>
 
 <script setup>
+// ===== 后台登录页 =====
+// 流程：账号密码 => 拉取滑块拼图验证码 => POST 校验滑块 x => userStore.login 换 token => 按 redirect 回跳。
+// 依赖接口（见 api/login.js）：GET /captcha 取底图/拼图/token，POST /captcha 校验偏移量，POST /system/auth/login 签发 token。
+// 验证码是一次性的：刷新图片、校验失败都要重新 getCode()，旧 token 随新图一起作废。
+// 本页只管拿 token 与跳转，token 写入 Cookie、拉取角色权限都在 store/modules/user.js。
+// 读者侧的门户登录是另一个页面（/portal/login），本页只在底部提供进入门户的链接。
 import {getCaptcha, checkCaptcha} from "@/api/login"
 import Cookies from "js-cookie"
 import {encrypt, decrypt} from "@/utils/jsencrypt"
@@ -140,9 +152,14 @@ import {ref} from "vue";
 import { Refresh } from '@element-plus/icons-vue'
 import { isUat, enterAs } from '@/utils/uat'
 
+// 卡片标题，由构建期注入的环境变量决定（UAT 与生产各自在 .env 中配置）
 const title = import.meta.env.VITE_APP_TITLE
+// UAT 免密按钮的 loading：存当前正在请求的角色（'admin' / 'user'），空串表示都没有在请求中
 const uatLoading = ref('')
 
+// UAT 快捷进入：跳过密码与验证码，直接写入假登录返回的 token 后整页跳转，
+// 目的是让路由守卫用新 token 重跑 getInfo + generateRoutes，按角色重建菜单与权限。
+// 失败时若响应拦截器已提示过（e.handled），这里不再叠一条原始报错文案。
 function uatEnter(role) {
   uatLoading.value = role
   enterAs(role).catch((e) => {
@@ -154,13 +171,20 @@ function uatEnter(role) {
   })
   // 成功时 enterAs 整页跳转，无需复位
 }
+
+// ===== 依赖与页面级状态 =====
+// store 负责会话与登录动作，route 用于取 redirect，proxy 用来调用表单组件实例上的 validate()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
 const {proxy} = getCurrentInstance()
+// 旧版「安全验证」弹窗遗留的两个状态：当前登录流程已改走滑块验证码，未再读写，仅保留声明
 const showSecurityVerification = ref(false)
 const pendingLoginData = ref(null)
 
+// ===== 滑块验证码状态 =====
+// 底图与拼图块都是后端下发的 base64 PNG，模板里拼成 data URL 直接渲染；
+// jigsawY 为拼图块的纵向落点（随图片一起下发），sliderPosition 为滑块横向位移，松手时原样作为校验参数 x。
 const showPuzzleCaptcha = ref(false)
 const originalImageBase64 = ref('')
 const jigsawImageBase64 = ref('')
@@ -171,6 +195,7 @@ const isImageLoading = ref(false)
 
 const captchaImageWidth = ref(300) // 默认宽度
 
+// 表单模型：captchaToken 由 /captcha 下发，滑块校验与登录接口必须使用同一枚 token，否则后端判为无效验证码
 const loginForm = ref({
   username: "",
   password: "",
@@ -179,25 +204,31 @@ const loginForm = ref({
   uuid: ""
 })
 
+// 前端只校验非空；账号是否存在、密码是否正确由后端判定并返回具体提示
 const loginRules = {
   username: [{required: true, trigger: "blur", message: "请输入您的账号"}],
   password: [{required: true, trigger: "blur", message: "请输入您的密码"}]
 }
 
+// 若依模板遗留开关：codeUrl 是旧图形验证码地址（滑块方案下未使用）；captchaEnabled 决定登录失败后是否重拉验证码；
+// register 控制「立即注册」入口，本页从未将其置为 true，故该链接默认不展示。
 const codeUrl = ref("")
 const loading = ref(false)
 // 验证码开关
 const captchaEnabled = ref(true)
 // 注册开关
 const register = ref(false)
+// 登录成功后的落地路由，来自 ?redirect=，由下方 watch 同步
 const redirect = ref(undefined)
 
 const isSliderActive = ref(false)
 
+// 监听整个 route 对象而非仅首次：被守卫反复踢回登录页时 redirect 参数可能变化，immediate 保证首屏即取值
 watch(route, (newRoute) => {
   redirect.value = newRoute.query && newRoute.query.redirect
 }, {immediate: true})
 
+// 点击登录：表单校验通过后先拉一张新验证码再弹滑块，此时账号密码只留在本地、不提交
 function handleLogin() {
   proxy.$refs.loginRef.validate(valid => {
     if (valid) {
@@ -205,6 +236,7 @@ function handleLogin() {
       showPuzzleCaptcha.value = true
     }
   })
+  // 下方整段为旧版「图形验证码 -> 直接登录」实现，已注释保留备查，当前生效的是滑块流程
   // proxy.$refs.loginRef.validate(valid => {
   //   if (valid) {
   //     loading.value = true
@@ -241,6 +273,8 @@ function handleLogin() {
 }
 
 
+// 取一张新验证码：图片、拼图落点与 token 一次性成套下发，token 存入表单供校验和登录复用。
+// 失败时把两张 base64 清空，让模板落到 error-placeholder 分支，而不是显示半张图或空白区域。
 async function getCode() {
   try {
     isImageLoading.value = true
@@ -265,6 +299,8 @@ async function getCode() {
   }
 }
 
+// 弹窗宽度由原图尺寸推导：原图宽（本身封顶 500px）+ 40px 内边距，再夹在 300~540px 之间，
+// 避免小图时弹窗过窄、大图时撑出可视区；等 img.onload 后才 resolve，保证 width 设置时图片尺寸已知。
 // 获取图片实际尺寸的函数
 function getImageDimensions(base64Data) {
   return new Promise((resolve) => {
@@ -289,6 +325,8 @@ function refreshCaptcha() {
 
 
 
+// 滑块拖拽：move/up 监听挂在 document 上，鼠标移出滑块范围也不会丢事件；
+// 起点位移 + 横向增量后夹在 [0, 容器宽 - 拼图块宽]，保证拼图块不会越出底图左右边界。
 function startDrag(e) {
   isSliderActive.value = true
   const startX = e.clientX
@@ -318,6 +356,8 @@ function startDrag(e) {
   document.addEventListener('mouseup', handleMouseUp)
 }
 
+// 把滑块横坐标交给网关比对（token 必须是 getCode 下发的那枚）。
+// 通过后留 500ms 让成功提示可读，再关弹窗并真正登录；不通过时走 catch 自动换一张新图重试。
 // Confirm CAPTCHA completion
 function confirmCaptcha(puzzleXPosition) {
   checkCaptcha({
@@ -343,6 +383,7 @@ function confirmCaptcha(puzzleXPosition) {
 }
 
 
+// 弹窗关闭（右上角按钮/ESC 等）时统一复位滑块状态，避免下次打开还带着上一次的位移与 loading
 // Cancel CAPTCHA
 function handleCaptchaCancel() {
   showPuzzleCaptcha.value = false
@@ -352,6 +393,8 @@ function handleCaptchaCancel() {
   isImageLoading.value = false
 }
 
+// 旧版「验证码通过后直接登录」的实现，已被 proceedWithLogin() 取代，当前没有调用方；
+// 它仍是「记住密码」唯一的写入点：账号明文、密码 RSA 加密后各存 30 天，取消勾选则清掉三项。
 function performActualLogin(loginData) {
   loading.value = true
   // 勾选了需要记住密码设置在 cookie 中设置记住用户名和密码
@@ -384,6 +427,8 @@ function performActualLogin(loginData) {
   })
 }
 
+// 首屏回填：从 Cookie 恢复「记住密码」的账号与密码（密码是 RSA 密文，需 decrypt 还原），
+// Cookie 不存在时保留表单现值，避免把用户刚输入的内容冲掉。
 function getCookie() {
   const username = Cookies.get("username")
   const password = Cookies.get("password")
@@ -399,6 +444,7 @@ function getCookie() {
 }
 
 // 滑块验证通过后真正调用后端登录
+// 与 performActualLogin 的两处差异：落地页缺省为 /index（后台首页），失败时刷新验证码而不是保留弹窗。
 function proceedWithLogin() {
   loading.value = true
   userStore.login({
@@ -421,10 +467,12 @@ function proceedWithLogin() {
   })
 }
 
+// 初始化：setup 阶段同步回填一次表单，页面渲染时账号/密码已是记住的值，不会闪空
 getCookie()
 </script>
 
 <style lang='scss' scoped>
+/* 页面根容器：背景图铺满 + flex 居中，高度依赖父级链路的 100% */
 .login {
   display: flex;
   justify-content: center;
@@ -440,6 +488,7 @@ getCookie()
   color: #707070;
 }
 
+/* 登录卡片：固定 400px 宽、白底圆角，内部输入框统一 40px 高 */
 .login-form {
   border-radius: 6px;
   background: #ffffff;
@@ -521,6 +570,7 @@ getCookie()
   padding-left: 12px;
 }
 
+/* 验证码弹窗内容区：图片区与滑轨自上而下排列，宽度收缩到弹窗内 */
 .puzzle-captcha-container {
   text-align: center;
   max-width: 100%;
@@ -615,6 +665,7 @@ getCookie()
   overflow: hidden;
 }
 
+/* 拼图块浮在底图之上（z-index 10）；关闭指针事件，拖拽只由下方滑轨接收 */
 .jigsaw-image {
   position: absolute;
   cursor: move;
@@ -624,6 +675,7 @@ getCookie()
   pointer-events: none;
 }
 
+/* 滑轨层级：轨道 2 < 滑块按钮 4；宽度 = 滑块位移 + 24px（半个滑块宽），让进度条右端跟住滑块中心 */
 .slider-track {
   position: absolute;
   top: 50%;
@@ -641,6 +693,7 @@ getCookie()
   background: #67c23a !important;
 }
 
+/* 48px 宽度需与 startDrag() 中的 jigsawWidth 常量保持一致，否则越界判断会错位 */
 .slider-btn {
   position: absolute;
   top: 50%;
@@ -675,6 +728,8 @@ getCookie()
   width: 100%;
 }
 
+/* 选择器是单下划线，而 Element Plus 弹窗头部类名为 el-dialog__header；且弹窗内容在传送层内，
+   scoped 样式需 :deep() 才能命中，因此这条规则实际不生效。 */
 .el-dialog_header {
   padding-bottom: initial;
 }
@@ -690,6 +745,7 @@ getCookie()
   color: #66b1ff;
 }
 
+/* 提示文字不接收鼠标事件，否则会挡住下方滑块的拖拽 */
 .slider-text {
   position: absolute;
   top: 50%;
@@ -703,6 +759,7 @@ getCookie()
   z-index: 1;
 }
 
+/* 空规则块：当前无任何声明，弹窗定位由模板上的内联 style 完成，保留作为覆盖入口 */
 .el-dialog {
 }
 

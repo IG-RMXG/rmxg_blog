@@ -6,8 +6,12 @@
 # 输出：Docker 中间件健康状态、应用服务的端口/PID/进程名/启动来源（IDE 或终端）、
 #       HTTP 探针耗时，以及登录链路快检。只读，不启动也不停止任何东西。
 
+# 巡检目标是"尽量多报"：Docker 未安装、端口不存在等场景命令都会抛错，
+# 这里统一静默降级，保证单个检查项失败不影响后续检查。
 $ErrorActionPreference = 'SilentlyContinue'
 
+# 按本地监听端口反查占用进程，返回 PID / 进程名 / 路径 / 启动来源 / 命令行对象；
+# 端口无人监听时返回 $null，调用方据此打印"未启动"。
 function Get-PortOwner {
     param([int]$Port)
     $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
@@ -42,6 +46,7 @@ function Get-PortOwner {
 
 Write-Host ''
 Write-Host '==================== Docker 中间件 ====================' -ForegroundColor Cyan
+# -a 连已退出的容器一并列出：中间件挂掉时能看到 Exited 状态，而不是误判成"没有容器"。
 $containers = docker ps -a --format '{{.Names}}|{{.Status}}|{{.Ports}}' 2>$null
 if ($containers) {
     foreach ($line in $containers) {
@@ -58,6 +63,9 @@ if ($containers) {
 Write-Host ''
 Write-Host '==================== 应用服务 ========================' -ForegroundColor Cyan
 
+# 服务清单：DEV（80 前端 / 8000 system / 8010 blog / 8889 gateway）、
+# UAT（8001/8011/8020/8890，前端 81 不在本表）、RuoYi 遗留模块（8080/9200/9201）。
+# 探针 URL 直连 127.0.0.1，绕开 /dev-api 代理，只验证端口后面有没有服务应答。
 $services = @(
     @{ Name = '前端 vite';        Port = 80;   Url = 'http://127.0.0.1:80/';                    Probe = 'HTTP' }
     @{ Name = 'system-service';   Port = 8000; Url = 'http://127.0.0.1:8000/system/';           Probe = 'HTTP' }
@@ -87,6 +95,7 @@ foreach ($svc in $services) {
         $sw.Stop()
         $probe = "HTTP $($resp.StatusCode) ($($sw.ElapsedMilliseconds)ms)"
     } catch {
+        # 4xx/5xx 会抛异常，此时状态码要从异常响应里取；连状态码都拿不到才算真断。
         $code = $_.Exception.Response.StatusCode.value__
         if ($code) { $probe = "HTTP $code (有应答)" } else { $probe = "无应答: $($_.Exception.Message.Split([char]10)[0])" }
     }
@@ -99,6 +108,8 @@ foreach ($svc in $services) {
 
 Write-Host ''
 Write-Host '==================== 登录链路快检 ====================' -ForegroundColor Cyan
+# 走 vite 的 /dev-api 代理：80 → 8889 网关 → 8000 system-service，
+# 用默认管理员账号验证整条链路，能签发 access_token 即视为通。
 try {
     $body = '{"username":"admin","password":"admin123"}'
     $r = Invoke-WebRequest -Uri 'http://127.0.0.1:80/dev-api/system/auth/login' -Method POST `

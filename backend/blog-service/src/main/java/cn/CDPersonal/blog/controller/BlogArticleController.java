@@ -40,6 +40,8 @@ public class BlogArticleController extends BlogBaseController {
     /** 文章列表（分页） */
     @GetMapping("/list")
     public TableDataInfo list(BlogArticle query) {
+        // 未登录返回空表而不是 401：首屏渲染就可能调列表，弹"会话过期"属于误报；
+        // 空表由 PageUtils 兜底成 {code:200, rows:[], total:0}，前端表格不会报错。
         if (!isLogin()) {
             return PageUtils.getDataTable(null);
         }
@@ -58,6 +60,7 @@ public class BlogArticleController extends BlogBaseController {
             return unauthorized();
         }
         BlogArticle article = articleService.selectArticleById(articleId, currentUserId(), isAdmin());
+        // Service 用 null 同时表达"不存在"和"无权查看"，这里统一回 403：不区分两者，避免泄露文章是否存在
         return article == null
                 ? ResponseVO.error(403, "文章不存在或无权查看")
                 : ResponseVO.success(article);
@@ -81,6 +84,8 @@ public class BlogArticleController extends BlogBaseController {
         if (!isLogin()) {
             return unauthorized();
         }
+        // 权限与默认值全部在 Service 里兜底：articleId、userId 被强制覆盖，
+        // 普通用户的置顶/推荐/直接发布也会被降级，所以这里只校验登录态。
         Long articleId = articleService.insertArticle(article, article.getTagIds(), currentUserId(), isAdmin());
         return ResponseVO.success(articleId);
     }
@@ -94,6 +99,7 @@ public class BlogArticleController extends BlogBaseController {
         if (article.getArticleId() == null) {
             return ResponseVO.error(500, "文章ID不能为空");
         }
+        // updateBy 用服务端解析出的用户名覆盖，不采信请求体里的值，避免审计字段被前端伪造
         article.setUpdateBy(currentUserName());
         String error = articleService.updateArticle(article, article.getTagIds(), currentUserId(), isAdmin());
         return error == null ? ResponseVO.success() : ResponseVO.error(403, error);
@@ -105,6 +111,7 @@ public class BlogArticleController extends BlogBaseController {
         if (!isLogin()) {
             return unauthorized();
         }
+        // 普通用户的归属校验在 Service 内逐条进行：只要有一条文章不属于自己就整体失败，不做部分删除
         String error = articleService.deleteArticleByIds(articleIds, currentUserId(), isAdmin());
         return error == null ? ResponseVO.success() : ResponseVO.error(403, error);
     }
@@ -118,6 +125,7 @@ public class BlogArticleController extends BlogBaseController {
         if (!isLogin()) {
             return unauthorized();
         }
+        // 前端可能把 articleId/status 传成数字或字符串，这里统一解析后再交给 Service 按值比较
         Long articleId = asLong(body.get("articleId"));
         String status = body.get("status") == null ? null : String.valueOf(body.get("status"));
         if (articleId == null || status == null || status.isBlank()) {
@@ -127,6 +135,10 @@ public class BlogArticleController extends BlogBaseController {
         return error == null ? ResponseVO.success() : ResponseVO.error(403, error);
     }
 
+    /**
+     * 宽松解析 JSON 数字：@RequestBody 走 Map 时，小整数会变成 Integer、大整数是 Long，
+     * 前端也可能直接传字符串；统一收敛成 Long，解析不了返回 null 由调用方按"参数不完整"处理。
+     */
     private Long asLong(Object value) {
         if (value == null) {
             return null;

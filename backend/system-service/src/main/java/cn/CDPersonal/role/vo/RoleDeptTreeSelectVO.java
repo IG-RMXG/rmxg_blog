@@ -41,6 +41,10 @@ public class RoleDeptTreeSelectVO implements Serializable {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 组装成功响应。depts 与 data 指向同一个 List 实例，仅为兼容两种前端读法，
+     * 不是两份数据；checkedKeys 为 null 时退化为空列表。
+     */
     public static RoleDeptTreeSelectVO success(List<TreeSelect> depts, List<Long> checkedKeys) {
         RoleDeptTreeSelectVO vo = new RoleDeptTreeSelectVO();
         vo.setDepts(depts == null ? new ArrayList<>() : depts);

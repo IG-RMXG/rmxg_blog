@@ -1,5 +1,7 @@
 <template>
+  <!-- 首页（路由 index）：框架介绍 + 技术选型 + 联系信息 + 更新日志 + 捐赠支持，纯静态展示，不请求后端接口 -->
   <div class="app-container home">
+    <!-- 上半区：左侧若依简介与版本/外链按钮，右侧技术选型两列清单（sm 及以下单列，lg 起左右两列） -->
     <el-row :gutter="20">
       <el-col :sm="24" :lg="12" style="padding-left: 20px">
         <h2>若依后台管理框架</h2>
@@ -29,6 +31,7 @@
         </p>
       </el-col>
 
+      <!-- 技术选型：后端 Spring Boot / Spring Cloud Alibaba 组件栈，前端 Vue 生态，仅作展示清单，不代表实际依赖 -->
       <el-col :sm="24" :lg="12" style="padding-left: 50px">
         <el-row>
           <el-col :span="12">
@@ -63,9 +66,12 @@
         </el-row>
       </el-col>
     </el-row>
+    <!-- 分隔上下两区：上面是文字介绍，下面是三张功能卡片 -->
     <el-divider />
+    <!-- 下半区：联系信息 / 更新日志 / 捐赠支持 三张卡片，xs~sm 单列、md 两列、lg 三列 -->
     <el-row :gutter="20">
       <el-col :xs="24" :sm="24" :md="12" :lg="8">
+        <!-- 联系信息卡片：官网、QQ 群、微信与支付宝；卡片统一套 update-log 样式类，只用于收拢卡片内列表样式 -->
         <el-card class="update-log">
           <template v-slot:header>
             <div class="clearfix">
@@ -80,6 +86,7 @@
                 >http://www.ruoyi.vip</el-link
               >
             </p>
+            <!-- 已满的 QQ 群用 s 标签加删除线标记，末尾未加删除线的群号仍可加入 -->
             <p>
               <i class="el-icon-user-solid"></i> QQ群： <s> 满42799195  </s> <s> 满170157040 </s>
               <s> 满130643120 </s> <s> 满225920371 </s> <s> 满201705537 </s> <s> 满236543183 </s>
@@ -103,6 +110,7 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="24" :md="12" :lg="8">
+        <!-- 更新日志卡片：el-collapse 手风琴模式（accordion），同一时间只展开一个版本，内容全部为静态文案 -->
         <el-card class="update-log">
           <template v-slot:header>
             <div class="clearfix">
@@ -110,6 +118,7 @@
             </div>
           </template>
           <el-collapse accordion>
+            <!-- 版本按发布时间倒序排列，标题格式固定为「版本号 - 发布日期」；首条版本号需与 script 中的 version 手动保持一致 -->
             <el-collapse-item title="v3.6.6 - 2025-05-30">
               <ol>
                 <li>优化菜单搜索查询页</li>
@@ -932,6 +941,7 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="24" :md="12" :lg="8">
+        <!-- 捐赠支持卡片：收款二维码是本地静态资源，用 @ 别名（指向 src）引用，不经过后端文件服务 -->
         <el-card class="update-log">
           <template v-slot:header>
             <div class="clearfix">
@@ -955,14 +965,23 @@
 </template>
 
 <script setup name="Index">
+// 首页组件：无 props / emits / 接口调用，数据全部内联在模板中。
+// name="Index" 由 unplugin-vue-setup-extend-plus 编译成组件名，keep-alive 的 include 靠它和路由名对齐做页签缓存。
+// version 仅用于展示，与新版本发布时下方更新日志首条需同步修改。
 const version = ref('3.6.6')
 
+/**
+ * 在新窗口打开外部链接。
+ * 第二个参数是窗口名而非保留字 _blank：同名窗口已存在时会被复用，不会反复堆叠新标签页。
+ * @param {string} url 完整外链地址（含协议），由调用处写死，此处不做合法性校验
+ */
 function goTarget(url) {
   window.open(url, '__blank')
 }
 </script>
 
 <style scoped lang="scss">
+/* 首页专用样式：scoped 保证只作用于本页；正文基色 #676a6c 与字号 13px 沿用若依后台的灰底配色 */
 .home {
   blockquote {
     padding: 10px 20px;
@@ -980,6 +999,7 @@ function goTarget(url) {
     margin-bottom: 20px;
   }
 
+  /* 技术选型两列清单去掉默认缩进和外边距，保证左右两列首行对齐 */
   ul {
     padding: 0;
     margin: 0;
@@ -990,6 +1010,7 @@ function goTarget(url) {
   color: #676a6c;
   overflow-x: hidden;
 
+  /* 与上面同名的 ul 规则分开书写，这里只负责去掉列表项目符号，两处声明会被合并生效 */
   ul {
     list-style-type: none;
   }
@@ -998,6 +1019,7 @@ function goTarget(url) {
     margin-top: 0px;
   }
 
+  /* 首页大标题用 100 超细字重，与后台内页标题的常规字重形成层级差异 */
   h2 {
     margin-top: 10px;
     font-size: 26px;
@@ -1012,6 +1034,7 @@ function goTarget(url) {
     }
   }
 
+  /* 更新日志用 ol 承载条目：显式写出十进制序号与块级间距，避免折叠面板内依赖浏览器默认值而排版漂移 */
   .update-log {
     ol {
       display: block;

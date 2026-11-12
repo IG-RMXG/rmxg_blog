@@ -20,6 +20,7 @@ import java.util.List;
 @Mapper
 public interface SysNoticeMapper {
 
+    /** 管理页列表：时间范围按天比较（DATE() 包一层，忽略时分秒） */
     @Select("""
             <script>
             SELECT notice_id, notice_title, notice_type, notice_content, status,
@@ -91,6 +92,7 @@ public interface SysNoticeMapper {
             """)
     int updateNotice(SysNotice notice);
 
+    /** 批量物理删除（无软删列）；不校验记录是否存在，删 0 行由 controller 判为失败 */
     @Delete("""
             <script>
             DELETE FROM sys_notice WHERE notice_id IN

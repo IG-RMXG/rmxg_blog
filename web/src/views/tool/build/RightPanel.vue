@@ -4,6 +4,7 @@
       <el-tab-pane label="组件属性" name="field" />
       <el-tab-pane label="表单属性" name="form" />
     </el-tabs>
+    <!-- 属性面板主体：右上角是组件文档入口，下面按 Tab 切换「组件属性」与「表单属性」两个表单 -->
     <div class="field-box">
       <a class="document-link" target="_blank" :href="documentLink" title="查看组件文档">
         <el-icon>
@@ -14,6 +15,7 @@
         <!-- 组件属性 -->
         <el-form v-show="currentTab === 'field' && showField" size="default" label-width="90px" label-position="top"
           style="">
+          <!-- 只有 changeTag=true 的物料允许换类型；替换由父级 tagChange 完成，会尽量保留同名属性 -->
           <el-form-item v-if="activeData.changeTag" label="组件类型">
             <el-select v-model="activeData.tagIcon" placeholder="请选择组件类型" :style="{ width: '100%' }" @change="tagChange">
               <el-option-group v-for="group in tagList" :key="group.label" :label="group.label">
@@ -42,6 +44,7 @@
           <el-form-item v-if="activeData['end-placeholder'] !== undefined" label="结束占位">
             <el-input v-model="activeData['end-placeholder']" placeholder="请输入占位提示" />
           </el-form-item>
+          <!-- 栅格 1~24（12 处有刻度）；改动会写回 formConf.span，作为之后新增组件的默认宽度 -->
           <el-form-item v-if="activeData.span !== undefined" label="表单栅格">
             <el-slider v-model="activeData.span" :max="24" :min="1" :marks="{ 12: '' }" @change="spanChange" />
           </el-form-item>
@@ -67,6 +70,7 @@
           <el-form-item v-if="activeData.style && activeData.style.width !== undefined" label="组件宽度">
             <el-input v-model="activeData.style.width" placeholder="请输入组件宽度" clearable />
           </el-form-item>
+          <!-- 默认值：输入框里是文本形态，输入时由 onDefaultValueInput 按数组/布尔/数字回写 -->
           <el-form-item v-if="activeData.vModel !== undefined" label="默认值">
             <el-input :value="setDefaultValue(activeData.defaultValue)" placeholder="请输入默认值"
               @input="onDefaultValueInput" />
@@ -213,6 +217,7 @@
           <el-form-item v-if="activeData.format !== undefined" label="时间格式">
             <el-input :value="activeData.format" placeholder="请输入时间格式" @input="setTimeValue($event)" />
           </el-form-item>
+          <!-- 选项编辑：仅多选/单选/下拉显示；可拖拽排序，选项值是否转数字由 isNumberStr 判断 -->
           <template v-if="['el-checkbox-group', 'el-radio-group', 'el-select'].indexOf(activeData.tag) > -1">
             <el-divider>选项</el-divider>
             <draggable :list="activeData.options" :animation="340" group="selectItem" handle=".option-drag"
@@ -242,6 +247,7 @@
             <el-divider />
           </template>
 
+          <!-- 级联选择器：动态数据只配键名（数据由接口运行时提供），静态数据用 el-tree 直接维护层级 -->
           <template v-if="['el-cascader'].indexOf(activeData.tag) > -1">
             <el-divider>选项</el-divider>
             <el-form-item label="数据类型">
@@ -379,6 +385,7 @@
             <el-switch v-model="activeData.required" />
           </el-form-item>
 
+          <!-- 布局结构树：把当前容器连同子级渲染成树，用于确认嵌套关系与组件名 -->
           <template v-if="activeData.layoutTree">
             <el-divider>布局结构树</el-divider>
             <el-tree :data="[activeData]" :props="layoutTreeProps" node-key="renderKey" default-expand-all draggable>
@@ -391,6 +398,7 @@
             </el-tree>
           </template>
 
+          <!-- 正则校验：只给单表单项配置，生成代码时 pattern 会原样内联进 new RegExp(...)，这里不做语法校验 -->
           <template v-if="activeData.layout === 'colFormItem'">
             <el-divider>正则校验</el-divider>
             <div v-for="(item, index) in activeData.regList" :key="index" class="reg-item">
@@ -457,6 +465,7 @@
         </el-form>
       </el-scrollbar>
     </div>
+    <!-- 两个纯 UI 弹窗：图标选择、树节点新增；结果都通过事件回写到 activeData / 选项树 -->
     <icons-dialog v-model="iconsVisible" :current="activeData[currentIconModel]" @select="setIcon" />
     <treeNode-dialog v-model="dialogVisible" @commit="addNode" />
 
@@ -464,13 +473,26 @@
 </template>
 
 <script setup>
+/**
+ * 表单构建器右侧属性面板。
+ *
+ * 两个 Tab 共用一块滚动区：
+ * - 组件属性（field）：编辑 props.activeData。每个 el-form-item 都以「activeData 上是否存在该字段」
+ *   作为 v-if 条件，所以组件能配哪些项完全由 utils/generator/config 的字段声明决定，本文件不写死组件名单；
+ * - 表单属性（form）：直接双向编辑 props.formConf。
+ * 传进来的 activeData / formConf 与父组件 ref 指向同一个对象，改属性即等于改画布数据，无需 emit 同步；
+ * 只有「切换组件类型」例外，通过 tag-change 交回父级做整体替换。
+ */
 import draggable from "vuedraggable/dist/vuedraggable.common"
 import { isNumberStr } from '@/utils/index'
 import IconsDialog from './IconsDialog'
 import TreeNodeDialog from './TreeNodeDialog'
 import { inputComponents, selectComponents } from '@/utils/generator/config'
 
+// 当前实例的 proxy，用于访问全局挂载的能力（如 $modal）以及实例上可写的属性
 const { proxy } = getCurrentInstance()
+// 各日期类型对应的 value-format。Element Plus 的日期控件 format 是显示格式、value-format 才是取值格式，
+// 两者要分开设置；周选择器特殊，下面 setTimeValue 会单独处理
 const dateTimeFormat = {
   date: 'YYYY-MM-DD',
   week: 'YYYY 第 ww 周',
@@ -481,12 +503,16 @@ const dateTimeFormat = {
   monthrange: 'YYYY-MM',
   datetimerange: 'YYYY-MM-DD HH:mm:ss'
 }
+// showField：画布为空时不渲染「组件属性」表单；
+// activeData / formConf：父组件 ref 里的同一个对象，直接改属性就等于改画布数据；
+// 其中 formConf.formBtns 只在生成页面形态（type=file）时决定是否输出提交/重置按钮
 const props = defineProps({
   showField: Boolean,
   activeData: Object,
   formConf: Object
 })
 
+// 面板本地的 UI 状态与各类下拉选项常量（当前 Tab、弹窗开关、选项列表），不参与画布数据
 const data = reactive({
   currentTab: 'field',
   currentNode: null,
@@ -580,10 +606,14 @@ const data = reactive({
   }
 })
 
+// reactive 解构会丢响应性，统一用 toRefs 转成 ref，模板里可直接当变量用
 const { currentTab, currentNode, dialogVisible, iconsVisible, currentIconModel, dateTypeOptions, dateRangeTypeOptions, colorFormatOptions, justifyOptions, layoutTreeProps } = toRefs(data)
 
+// 组件文档入口：activeData.document 未配置时兜底到 Element Plus 文档，保证链接始终可点
 const documentLink = computed(() => props.activeData.document || 'https://element-plus.org/zh-CN/guide/installation')
 
+// 日期类型下拉：带 start-placeholder 说明是按范围选择的控件，给范围类型；否则只给单值类型。
+// 非 el-date-picker 时返回空数组，下拉自然就不渲染
 const dateOptions = computed(() => {
   if (props.activeData.type !== undefined && props.activeData.tag === 'el-date-picker') {
     if (props.activeData['start-placeholder'] === undefined) {
@@ -594,6 +624,7 @@ const dateOptions = computed(() => {
   return []
 })
 
+// 类型切换的可选物料：只允许输入型与选择型互转，布局型容器不参与
 const tagList = ref([
   {
     label: '输入型组件',
@@ -605,6 +636,7 @@ const tagList = ref([
   }
 ])
 
+// 只上抛「类型切换」，画布节点怎么替换由父级决定，本组件不直接改 drawingList
 const emit = defineEmits(['tag-change'])
 
 function addReg() {
@@ -620,12 +652,16 @@ function addSelectItem() {
   })
 }
 
+// 打开添加弹窗：currentNode 指向待插入的那个数组（根级就是 options），
+// 弹窗只收集数据，真正的插入在 addNode 里做
 function addTreeItem() {
   ++proxy.idGlobal
   dialogVisible.value = true
   currentNode.value = props.activeData.options
 }
 
+// el-tree 的自定义节点渲染（用 h 函数而不是模板）：左侧节点名，右侧「追加 / 删除」两个操作，
+// 追加会打开弹窗并把结果压进该节点的 children
 function renderContent(h, { node, data, store }) {
   return h('div', {
     class: "custom-tree-node"
@@ -655,6 +691,7 @@ function renderContent(h, { node, data, store }) {
     ])
   ])
 }
+// 给节点追加子级：没有 children 先补数组，再把插入目标指向它
 function append(data) {
   if (!data.children) {
     data.children = []
@@ -662,19 +699,24 @@ function append(data) {
   dialogVisible.value = true
   currentNode.value = data.children
 }
+// 删除节点：父级可能直接是根数组，也可能是带 children 的对象，两种都要兼容；
+// 按 id 定位而不是按下标，避免拖拽排序后删错节点
 function remove(node, data) {
   const { parent } = node
   const children = parent.data.children || parent.data
   const index = children.findIndex(d => d.id === data.id)
   children.splice(index, 1)
 }
+// 弹窗提交后压入 currentNode 指向的数组，el-tree 会随数据变化自动刷新
 function addNode(data) {
   currentNode.value.push(data)
 }
 
+// 纯数字字符串转成 number：否则选项值是字符串，与数字型默认值、接口数据比较时会出现不相等
 function setOptionValue(item, val) {
   item.value = isNumberStr(val) ? +val : val
 }
+// 内部默认值转成输入框可编辑的文本：数组用逗号拼接，布尔转成字符串，其余原样返回
 function setDefaultValue(val) {
   if (Array.isArray(val)) {
     return val.join(',')
@@ -688,6 +730,7 @@ function setDefaultValue(val) {
   return val
 }
 
+// 输入时反向解析成真实类型回写：数组按逗号拆分并逐项转数字，'true'/'false' 转布尔，其余做数字探测
 function onDefaultValueInput(str) {
   if (Array.isArray(props.activeData.defaultValue)) {
     // 数组
@@ -701,6 +744,7 @@ function onDefaultValueInput(str) {
   }
 }
 
+// 开关的开启值/关闭值可能是布尔也可能是数字，按输入内容推断类型后回写，避免类型不一致开关失效
 function onSwitchValueInput(val, name) {
   if (['true', 'false'].indexOf(val) > -1) {
     props.activeData[name] = JSON.parse(val)
@@ -709,6 +753,8 @@ function onSwitchValueInput(val, name) {
   }
 }
 
+// 改日期格式时连带重置默认值并写回 value-format：旧默认值是按老格式存的，留着会和控件新格式冲突；
+// 周选择器特殊，value-format 固定取日期格式，否则取不到值
 function setTimeValue(val, type) {
   const valueFormat = type === 'week' ? dateTimeFormat.date : val
   props.activeData.defaultValue = null
@@ -716,22 +762,27 @@ function setTimeValue(val, type) {
   props.activeData.format = val
 }
 
+// 栅格改动同时记到 formConf.span，之后新增的组件会沿用这个宽度
 function spanChange(val) {
   props.formConf.span = val
 }
 
+// 单选/多选切换后默认值类型要跟着变：多选用数组，单选用字符串，否则控件回显会异常
 function multipleChange(val) {
   props.activeData.defaultValue = val ? [] : ''
 }
 
+// 时间类型切换：按映射表把新格式套到 format / value-format 上，并清掉旧默认值
 function dateTypeChange(val) {
   setTimeValue(dateTimeFormat[val], val)
 }
 
+// 范围开关：打开时默认值变成 [min, max] 双值，关闭时回退成单值
 function rangeChange(val) {
   props.activeData.defaultValue = val ? [props.activeData.min, props.activeData.max] : props.activeData.min
 }
 
+// 评分组件的「辅助文字」与「显示分数」互斥：打开一个就必须关掉另一个（rateScoreChange 是反向处理）
 function rateTextChange(val) {
   if (val) props.activeData['show-score'] = false
 }
@@ -740,12 +791,15 @@ function rateScoreChange(val) {
   if (val) props.activeData['show-text'] = false
 }
 
+// 颜色格式决定是否支持透明度：rgba/hsla 这类带 a 的格式才打开 show-alpha；
+// 换格式后旧颜色值可能不合法，清空默认值并改 renderKey 强制重建控件
 function colorFormatChange(val) {
   props.activeData.defaultValue = null
   props.activeData['show-alpha'] = val.indexOf('a') > -1
   props.activeData.renderKey = +new Date() // 更新renderKey,重新渲染该组件
 }
 
+// 先记住要回写的图标字段名（prefix-icon / suffix-icon），弹窗选中后按它写值
 function openIconsDialog(model) {
   iconsVisible.value = true
   currentIconModel.value = model
@@ -755,6 +809,7 @@ function setIcon(val) {
   props.activeData[currentIconModel.value] = val
 }
 
+// 从两类物料里找出目标定义后上抛；下拉选项本来就用这两个数组渲染，正常情况下不会返回 undefined
 function tagChange(tagIcon) {
   let target = inputComponents.find(item => item.tagIcon === tagIcon)
   if (!target) target = selectComponents.find(item => item.tagIcon === tagIcon)
@@ -780,6 +835,7 @@ function tagChange(tagIcon) {
     }
   }
 
+  /* 高度扣掉顶部 Tab 条 42px，让滚动条只出现在属性表单区域 */
   .field-box {
     position: relative;
     height: calc(100vh - 50px - 40px - 42px);
@@ -870,6 +926,7 @@ function tagChange(tagIcon) {
   }
 }
 
+/* 固定在面板左上角，z-index 保证浮在滚动内容之上 */
 .document-link {
   position: absolute;
   display: flex;

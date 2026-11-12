@@ -1,3 +1,14 @@
+/*
+ * 后台布局的「出厂默认值」。store/modules/settings.js 初始化时读取本文件，
+ * 再把 localStorage 里 'layout-setting'（用户在「布局设置」面板保存的结果）逐项覆盖上来。
+ *
+ * 因此修改下面的值只影响「从未自定义过布局」的浏览器；用户已经保存过的开关以 storage 为准
+ * （store 用 === undefined 判断，避免 false 被当成未设置）。
+ * 例外：showSettings 与 footerContent 不参与 storage 覆盖，改这里即全局生效。
+ *
+ * 另：title 是构建期从 VITE_APP_TITLE 读到的静态值，实际 document.title 由
+ * settings store 的 setTitle（配合 utils/dynamicTitle）在路由切换时按 meta.title 重写。
+ */
 export default {
   /**
    * 网页标题

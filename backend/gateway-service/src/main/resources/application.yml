@@ -3,6 +3,8 @@ spring:
   application:
     name: gateway
   # redis配置
+  # 网关自己不存业务数据，Redis 只放拼图验证码的答案坐标：
+  # key 是验证码 token、TTL 5 分钟（BlockPuzzleCaptchaServiceImpl），过期即失效，需重新获取。
   data:
     redis:
       host: localhost
@@ -31,6 +33,9 @@ gateway:
     uat-service: ${GATEWAY_UAT_SERVICE:}
 
 #
+# 拼图验证码的图片扫描参数，由 CaptchaConfiguration 绑定 cd.captcha.*：
+# allowed-extensions 是扫描底图目录时认可的后缀白名单（小写、不带点，比较时忽略大小写）。
+# 实现类默认只认 jpg/png，这里额外放开 jpeg/webp，常见格式的图片可以直接丢进目录复用。
 cd:
   captcha:
     allowed-extensions:

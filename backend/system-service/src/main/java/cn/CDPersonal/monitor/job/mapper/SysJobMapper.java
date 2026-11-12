@@ -12,6 +12,16 @@ import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+/**
+ * 定时任务（sys_job）与调度日志（sys_job_log）的注解式 Mapper。
+ *
+ * 约定：
+ *   - 两张表都没有逻辑删除列，delete / clean 为物理删除；deleteJobByIds 不级联删调度日志；
+ *   - 动态条件统一用 <script> 包裹；列表按主键倒序，SQL 不写 LIMIT，分页由 PageUtils 拦截；
+ *   - 新增依赖 @Options 回填自增主键，插入后可直接读 jobId / jobLogId；
+ *   - create_time 一律取数据库 NOW()，update_time 只在 update 语句里刷新；
+ *   - 批量删除用 foreach 拼 IN，空数组会产生非法 SQL，调用方需先判空。
+ */
 @Mapper
 public interface SysJobMapper {
 
@@ -66,6 +76,7 @@ public interface SysJobMapper {
     @Options(useGeneratedKeys = true, keyProperty = "jobId")
     int insertJob(SysJob job);
 
+    // 全字段覆盖式更新（含 remark）：调用方须传完整对象，未传字段会被写成 NULL。
     @Update("""
             UPDATE sys_job
             SET job_name = #{jobName},
@@ -82,6 +93,7 @@ public interface SysJobMapper {
             """)
     int updateJob(SysJob job);
 
+    // 列表开关只改 status 与 update_time；不校验取值（0 正常 / 1 暂停），也不触发调度器。
     @Update("UPDATE sys_job SET status = #{status}, update_time = NOW() WHERE job_id = #{jobId}")
     int updateJobStatus(@Param("jobId") Long jobId, @Param("status") String status);
 
@@ -118,6 +130,7 @@ public interface SysJobMapper {
             """)
     List<SysJobLog> selectJobLogList(SysJobLog query);
 
+    // start_time / end_time 由调用方传入，create_time 取 DB NOW()。
     @Insert("""
             INSERT INTO sys_job_log
               (job_name, job_group, invoke_target, job_message, status,
@@ -139,6 +152,7 @@ public interface SysJobMapper {
             """)
     int deleteJobLogByIds(@Param("array") Long[] jobLogIds);
 
+    /** 物理清空整张调度日志表，不可恢复 */
     @Delete("DELETE FROM sys_job_log")
     int cleanJobLog();
 }

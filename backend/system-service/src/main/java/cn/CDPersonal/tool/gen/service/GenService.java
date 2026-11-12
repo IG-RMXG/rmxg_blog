@@ -21,6 +21,9 @@ import java.util.Map;
  *     不依赖 RuoYi 的 Velocity 模板文件（本仓库里没有 vm/ 模板目录）。
  *   - 生成到自定义路径（genType=1）：未实现，明确返回失败，避免假装成功。
  *     如需真正落盘生成，需要补模板引擎与模板文件。
+ *
+ * 元数据来源：表/列信息全部实时查 MySQL 的 information_schema（库名由 schemaName() 解析），
+ * 本类不缓存结构信息，改表后点一次"同步"即刷新；运行账号需要对目标库有元数据读权限。
  */
 @Service
 public class GenService {
@@ -35,6 +38,7 @@ public class GenService {
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
 
+    /** 解析库名；解析失败回落 ry-cloud（与默认数据源一致），每次现读配置，改了 URL 下一次调用即生效 */
     private String schemaName() {
         // jdbc:mysql://localhost:3306/ry-cloud?...
         String url = datasourceUrl;
@@ -57,10 +61,15 @@ public class GenService {
         return genTableMapper.selectGenTableList(query);
     }
 
+    /** 可导入的库表；已导入的表由 SQL 排除，因此导入成功后刷新列表就看不到它了 */
     public List<Map<String, Object>> selectDbTableList(String tableName, String tableComment) {
         return genTableMapper.selectDbTableList(schemaName(), tableName, tableComment);
     }
 
+    /**
+     * 详情 = 表头 + 列 + 主键列。
+     * 没有 isPk=1 的列时降级取第一列：后续 XML/菜单生成都依赖 pkColumn，宁可给个默认值。
+     */
     public GenTable selectGenTableById(Long tableId) {
         GenTable table = genTableMapper.selectGenTableById(tableId);
         if (table != null) {
@@ -77,6 +86,8 @@ public class GenService {
     // ==================== 导入 / 修改 / 删除 / 同步 ====================
 
     /** 从数据库导入表结构 */
+    // 幂等：已导入的表跳过，返回值是本次真正新增的表数（全跳过时 Controller 按失败提示）；
+    // 表头与全部列在同一事务内写入，列插入依赖 insertGenTable 回填的 tableId。
     @Transactional
     public int importGenTable(List<String> tableNames, String operName) {
         String schema = schemaName();
@@ -98,6 +109,10 @@ public class GenService {
         return count;
     }
 
+    /**
+     * 修改生成配置：表头整行覆盖；列只更新展示配置，不动列名/类型/主键/自增。
+     * columns 为 null 时视为"本次不改列"（前端只提交表头的请求会这样）。
+     */
     @Transactional
     public int updateGenTable(GenTable genTable) {
         genTableMapper.updateGenTable(genTable);
@@ -112,6 +127,10 @@ public class GenService {
         return 1;
     }
 
+    /**
+     * 批量删除：先删列再删表头，避免 gen_table_column 留孤儿行（表间没有外键约束）。
+     * 返回表头删除行数；重复删除时为 0，Controller 据此返回失败提示。
+     */
     @Transactional
     public int deleteGenTableByIds(Long[] tableIds) {
         genTableMapper.deleteGenTableColumnByTableIds(tableIds);
@@ -119,6 +138,8 @@ public class GenService {
     }
 
     /** 同步数据库：按当前库表结构重建列信息 */
+    // 实现是"先删后插"，用户调过的展示配置（是否列表/查询方式/htmlType 等）会一并丢失；
+    // 表未导入时静默返回，重复点同步是安全的。
     @Transactional
     public void synchDb(String tableName) {
         GenTable table = genTableMapper.selectGenTableByName(tableName);
@@ -137,6 +158,8 @@ public class GenService {
      * 生成预览文本。键名形如 vm/java/domain.java.vm，
      * 前端取最后一个 '/' 之后、'.vm' 之前作为页签名（domain.java）。
      */
+    // 8 个文件按插入顺序返回，前端页签顺序即 LinkedHashMap 的顺序；
+    // 配置为空时用兜底值（Unknown/cn.CDPersonal/system/business），保证预览不因空值中断。
     public Map<String, String> previewCode(Long tableId) {
         GenTable table = selectGenTableById(tableId);
         Map<String, String> result = new LinkedHashMap<>();
@@ -162,6 +185,7 @@ public class GenService {
 
     // ==================== 内部：元数据构建 ====================
 
+    /** 导入时的默认配置：去前缀后 Pascal/camel 命名，包名固定 cn.CDPersonal，genType 固定 0（zip） */
     private GenTable buildGenTable(String schema, String tableName, String tableComment, String operName) {
         GenTable table = new GenTable();
         table.setTableName(tableName);
@@ -179,6 +203,11 @@ public class GenService {
         return table;
     }
 
+    /**
+     * 由 information_schema 列信息生成展示配置默认值。
+     * 默认策略：主键且自增的列不参与新增/编辑；所有列出列表、默认不参与查询（queryType=EQ）；
+     * htmlType 按 Java 类型与列名后缀猜，导入后允许在编辑页调整。
+     */
     private List<GenTableColumn> buildColumns(String schema, String tableName, Long tableId, String operName) {
         List<Map<String, Object>> dbColumns = genTableMapper.selectDbTableColumns(schema, tableName);
         List<GenTableColumn> columns = new ArrayList<>();
@@ -214,12 +243,14 @@ public class GenService {
         return columns;
     }
 
+    // 表名首段即模块名（sys_user -> sys），与生成的 Controller 路由 /{module}/{business} 对齐；无下划线归 system
     private String guessModule(String tableName) {
         int idx = tableName.indexOf('_');
         return idx > 0 ? tableName.substring(0, idx) : "system";
     }
 
     /** 去掉常见业务前缀，如 sys_user -> user */
+    // 只去一层前缀、取第一个命中项；新增前缀不影响已导入的表，只影响之后的导入。
     private String stripPrefix(String tableName) {
         for (String prefix : List.of("sys_", "gen_", "biz_", "t_")) {
             if (tableName.startsWith(prefix)) {
@@ -229,10 +260,15 @@ public class GenService {
         return tableName;
     }
 
+    // information_schema 查回的 Map 值可能为 null，统一转空串，避免后续 equals/contains 抛 NPE
     private static String str(Object o) {
         return o == null ? "" : String.valueOf(o);
     }
 
+    /**
+     * 下划线转小驼峰，其余字符统一小写（user_NAME -> userName）。
+     * javaField 与 Mapper 变量名都由它派生，结果必须稳定，不要引入随机或本地化行为。
+     */
     public static String toCamelCase(String name) {
         if (name == null || name.isEmpty()) {
             return name;
@@ -250,6 +286,7 @@ public class GenService {
         return sb.toString();
     }
 
+    /** 在 toCamelCase 基础上首字母大写，用于类名；入参 null/空串原样返回 */
     public static String toPascalCase(String name) {
         String camel = toCamelCase(name);
         return camel == null || camel.isEmpty()
@@ -257,6 +294,10 @@ public class GenService {
                 : Character.toUpperCase(camel.charAt(0)) + camel.substring(1);
     }
 
+    /**
+     * 库字段类型 -> Java 类型。tinyint 也映射 Long 而不是 Boolean：保留数值语义，避免 0/1 之外的取值失真。
+     * 未识别类型一律 String，避免猜错导致生成的代码编译不过。
+     */
     private String toJavaType(String columnType) {
         String t = columnType.toLowerCase();
         if (t.startsWith("bigint") || t.startsWith("int") || t.startsWith("smallint")
@@ -279,6 +320,7 @@ public class GenService {
         return "String";
     }
 
+    /** 按 Java 类型 + 列名后缀猜表单控件，仅作为导入默认值；不参与代码文本生成 */
     private String toHtmlType(String javaType, String columnName) {
         if ("Date".equals(javaType)) {
             return "datetime";
@@ -298,6 +340,7 @@ public class GenService {
 
     // ==================== 内部：代码文本生成 ====================
 
+    /** 生成实体：字段顺序=列顺序（不重新排序），按需 import Date/BigDecimal，无 Lombok 注解 */
     private String genDomainJava(String pkg, String className, GenTable table, List<GenTableColumn> columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("package ").append(pkg).append(".domain;\n\n");
@@ -331,6 +374,7 @@ public class GenService {
         return sb.toString();
     }
 
+    /** 生成 Mapper 接口骨架：只有 5 个方法签名，SQL 全在 XML 里 */
     private String genMapperJava(String pkg, String module, String className) {
         return "package " + pkg + "." + module + ".mapper;\n\n"
                 + "import " + pkg + ".domain." + className + ";\n"
@@ -344,6 +388,11 @@ public class GenService {
                 + "    int delete" + className + "ByIds(Long[] ids);\n}\n";
     }
 
+    /**
+     * 生成 Mapper XML：resultMap + 基础 CRUD。
+     * insert 只拼 isInsert=1 的列，update 只拼 isEdit=1 且非 null 的列；
+     * useGeneratedKeys 假定主键自增，非自增主键（如 UUID）需要人工改。
+     */
     private String genMapperXml(String pkg, String className, GenTable table, List<GenTableColumn> columns) {
         GenTableColumn pk = table.getPkColumn();
         String pkName = pk == null ? "id" : pk.getColumnName();
@@ -411,6 +460,7 @@ public class GenService {
         return sb.toString();
     }
 
+    /** 生成 Service 接口：纯透传签名，不含事务/校验/分页，落盘后按业务补 */
     private String genServiceJava(String pkg, String module, String className, String business) {
         return "package " + pkg + "." + module + ".service;\n\n"
                 + "import " + pkg + ".domain." + className + ";\n\n"
@@ -423,6 +473,7 @@ public class GenService {
                 + "    int delete" + className + "ByIds(Long[] ids);\n}\n";
     }
 
+    /** 生成 Service 实现：仅构造器注入 + Mapper 透传，没有 @Transactional */
     private String genServiceImplJava(String pkg, String module, String className, String business) {
         return "package " + pkg + "." + module + ".service.impl;\n\n"
                 + "import " + pkg + ".domain." + className + ";\n"
@@ -446,6 +497,11 @@ public class GenService {
                 + "        return " + toCamelCase(className) + "Mapper.delete" + className + "ByIds(ids);\n    }\n}\n";
     }
 
+    /**
+     * 生成 Controller：路由固定为 /{module}/{business}。
+     * 生成的是裸 @RestController（直接返回实体/List），缺少本仓库的 ResponseVO 包装、
+     * 分页与鉴权注解，接入前端前需要人工对齐接口契约。
+     */
     private String genControllerJava(String pkg, String module, String className, String business, GenTable table) {
         String var = toCamelCase(className);
         return "package " + pkg + "." + module + ".controller;\n\n"
@@ -470,6 +526,10 @@ public class GenService {
                 + "        return " + var + "Service.delete" + className + "ByIds(ids);\n    }\n}\n";
     }
 
+    /**
+     * 生成菜单 SQL（示例）：parent_id 写死 3，且只生成菜单、不生成按钮权限，
+     * 执行前需按目标库的实际父菜单与组件路径调整。
+     */
     private String genSql(GenTable table, List<GenTableColumn> columns) {
         GenTableColumn pk = table.getPkColumn();
         StringBuilder sb = new StringBuilder();
@@ -487,6 +547,10 @@ public class GenService {
         return sb.toString();
     }
 
+    /**
+     * 生成前端 api.js：请求路径只拼了 business，缺少 module 段，
+     * 与 Controller 的 /{module}/{business} 前缀不一致，接入前端时需要补模块名。
+     */
     private String genApiJs(String business, String className) {
         String var = toCamelCase(className);
         return "import request from '@/utils/request'\n\n"
@@ -502,6 +566,7 @@ public class GenService {
                 + "  return request({ url: '/" + business + "/' + id, method: 'delete' })\n}\n";
     }
 
+    // null 转空串，避免字符串拼接出现字面量 "null"（如菜单名变成 "null管理"）
     private String nvl(String s) {
         return s == null ? "" : s;
     }

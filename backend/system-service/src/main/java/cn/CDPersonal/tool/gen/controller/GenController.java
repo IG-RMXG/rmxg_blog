@@ -30,6 +30,9 @@ import java.util.Map;
  * 能力边界：除"生成到自定义路径"外均为真实现（预览是按表结构实时拼代码文本，
  * 不依赖 vm 模板文件）。genCode 需要 Velocity 模板与目标路径，本仓库没有模板目录，
  * 因此明确返回未实现而不是假装成功。
+ *
+ * 鉴权：本类未声明 @PreAuthorize 等接口级权限注解，服务内也没有统一拦截器；
+ * edit 与 importTable 只从 LoginUserHolder 取用户名（未登录时为空串）写入审计字段。
  */
 @RestController
 @RequestMapping("/code/gen")
@@ -41,6 +44,7 @@ public class GenController {
         this.genService = genService;
     }
 
+    /** 已导入表分页；startPage() 必须紧挨查询调用，中间插入别的 DB 操作会让分页错位 */
     @GetMapping("/list")
     public TableDataInfo list(GenTable query) {
         PageUtils.startPage();
@@ -55,6 +59,7 @@ public class GenController {
         return PageUtils.getDataTable(genService.selectDbTableList(tableName, tableComment));
     }
 
+    /** 表详情，含 columns 与 pkColumn；不存在时返回 404 业务码而不是空对象 */
     @GetMapping("/{tableId}")
     public ResponseVO<GenTable> getInfo(@PathVariable Long tableId) {
         GenTable table = genService.selectGenTableById(tableId);
@@ -64,6 +69,7 @@ public class GenController {
         return ResponseVO.success(table);
     }
 
+    /** 修改生成配置：updateBy 用登录上下文覆盖（前端传值无效），列只更新展示项 */
     @PutMapping
     public ResponseVO<Void> edit(@RequestBody GenTable genTable) {
         genTable.setUpdateBy(LoginUserHolder.getUserName());
@@ -72,6 +78,8 @@ public class GenController {
     }
 
     /** 导入表：tables 是逗号分隔的表名 */
+    // 空项与首尾空白会被过滤；全部已导入或表名不存在时 service 返回 0，这里统一提示，
+    // 不区分"已导入"和"库中不存在"两种原因（用户可对照 db/list 自查）。
     @PostMapping("/importTable")
     public ResponseVO<Void> importTable(@RequestParam("tables") String tables) {
         if (tables == null || tables.isBlank()) {
@@ -89,6 +97,7 @@ public class GenController {
         return ResponseVO.success();
     }
 
+    /** 代码预览：返回 {vm 路径 -> 代码文本}，空 Map 表示表不存在（转 404） */
     @GetMapping("/preview/{tableId}")
     public ResponseVO<Map<String, String>> preview(@PathVariable Long tableId) {
         Map<String, String> code = genService.previewCode(tableId);
@@ -108,12 +117,14 @@ public class GenController {
                 "生成到自定义路径未实现（缺少 vm 模板），请使用「预览」复制代码");
     }
 
+    /** 同步库表结构：会重建列配置（用户改过的展示项丢失），只按表名操作，无返回值 */
     @GetMapping("/synchDb/{tableName}")
     public ResponseVO<Void> synchDb(@PathVariable String tableName) {
         genService.synchDb(tableName);
         return ResponseVO.success();
     }
 
+    /** 批量删除：先删列再删表头；删除行数为 0 视为失败，因此重复删除会报错 */
     @DeleteMapping("/{tableIds}")
     public ResponseVO<Void> remove(@PathVariable Long[] tableIds) {
         return genService.deleteGenTableByIds(tableIds) > 0

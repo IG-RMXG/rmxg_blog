@@ -32,6 +32,8 @@ public interface SysDeptQueryMapper {
             """)
     List<Long> selectDeptIdAndChildren(@Param("deptId") Long deptId);
 
+    // 刻意不过滤 del_flag / status：用户历史数据里若还挂着已停用或已软删的部门，
+    // 也要把名称带出来，否则列表"部门"列会空白，反而看不出数据异常。
     /**
      * 单个部门，供用户列表 / 详情用 @One 装配 SysUser.dept。
      *

@@ -16,6 +16,8 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public class SysNotice extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 列表 SQL 也会把 notice_content（库里 longblob）整块查出来，没有只查摘要的列表查询；首页只取 status='0' 的最近 5 条。
+
     /** 公告ID */
     @Excel(name = "公告ID", cellType = Excel.ColumnType.NUMERIC)
     private Long noticeId;
@@ -31,6 +33,7 @@ public class SysNotice extends BaseEntity {
     /** 公告内容 */
     private String noticeContent;
 
+    // 关闭（1）只是不再对外展示，记录仍保留；该表没有 del_flag，删除是物理删除
     /** 公告状态（0正常 1关闭） */
     @Excel(name = "公告状态", readConverterExp = "0=正常,1=关闭")
     private String status;

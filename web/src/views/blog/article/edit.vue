@@ -57,11 +57,21 @@
       <span class="status-tip" v-if="!isAdmin">普通用户提交后将进入「待审核」，由管理员发布</span>
     </div>
 
+    <!-- 隐藏的文件选择器：由「上传封面」按钮调用 click() 触发；accept 只做前端过滤，真正校验在后端 -->
     <input ref="coverInput" type="file" accept="image/*" style="display: none" @change="handleCoverSelect" />
   </div>
 </template>
 
 <script setup name="BlogArticleEdit">
+/**
+ * 文章新建/编辑页：同一组件复用，route.params.articleId 有值时加载旧文章进入编辑，否则为新增。
+ * 接口：getArticle 回填、addArticle/updateArticle 保存、uploadBlogImage 上传封面，
+ *       listEnabledCategory / listAllTag 提供下拉选项；正文编辑器为 MarkdownEditor。
+ * 权限差异：管理员可发布（status=1）并设置置顶/推荐；普通用户只能存草稿（0）或提交审核（2），
+ *           置顶/推荐开关不渲染，后端也会把这两个字段回退为库中原值。
+ * 注意：普通用户保存已发布文章时，后端会把状态收敛为草稿/待审核，相当于先下线再重审。
+ * 保存成功后统一返回 /blog/article。
+ */
 import { useRouter, useRoute } from 'vue-router'
 import { getArticle, addArticle, updateArticle, uploadBlogImage } from '@/api/blog/article'
 import { listEnabledCategory } from '@/api/blog/category'
@@ -74,6 +84,7 @@ const route = useRoute()
 const { proxy } = getCurrentInstance()
 const userStore = useUserStore()
 
+// 管理员判定同时决定按钮文案（发布/提交审核）和保存时提交的目标状态
 const isAdmin = computed(() => userStore.roles.includes('admin'))
 
 const articleRef = ref()
@@ -83,8 +94,11 @@ const categoryOptions = ref([])
 const tagOptions = ref([])
 const previewOnly = ref(false)
 
+// 可选路由参数：有 articleId 走 updateArticle，没有则走 addArticle
 const articleId = computed(() => route.params.articleId ? Number(route.params.articleId) : undefined)
 
+// form 即提交给后端的 BlogArticle 载荷：tagIds 是标签主键数组（后端按此全量覆盖关联），
+// isTop/isRecommend 用字符串 '0'/'1' 与后端字段一致；校验只要求标题必填，正文/分类等允许为空
 const data = reactive({
   form: {
     articleId: undefined,
@@ -103,6 +117,7 @@ const data = reactive({
 })
 const { form, rules } = toRefs(data)
 
+// 两个下拉都一次性拉全量：分类只含启用项，标签不区分状态，接口均直接返回数组
 function getCategories() {
   listEnabledCategory().then(res => { categoryOptions.value = res.data || [] })
 }
@@ -111,6 +126,7 @@ function getTags() {
   listAllTag().then(res => { tagOptions.value = res.data || [] })
 }
 
+// 编辑回填：接口返回 tags 为对象数组，表单只保存 tagIds；置顶/推荐缺省补 '0' 以匹配 el-switch
 function loadArticle() {
   if (!articleId.value) return
   getArticle(articleId.value).then(res => {
@@ -131,6 +147,8 @@ function triggerCoverUpload() {
   coverInput.value && coverInput.value.click()
 }
 
+// 选完文件立刻清空 input.value，否则再次选择同一个文件不会触发 change；
+// 文件大小/格式由后端限制（5MB，jpg/jpeg/png/gif/webp/bmp/svg），失败提示由请求拦截器统一弹出
 async function handleCoverSelect(e) {
   const file = e.target.files && e.target.files[0]
   e.target.value = ''
@@ -154,6 +172,8 @@ function handlePreview() {
   editorRef.value && editorRef.value.togglePreviewOnly(previewOnly.value)
 }
 
+// status 由按钮决定：'1'=发布（仅管理员会直接生效）、'2'=提交审核、'0'=存草稿；
+// 以 articleId 区分新增/更新，成功后统一回到列表页
 function submitForm(status) {
   proxy.$refs.articleRef.validate(valid => {
     if (!valid) return

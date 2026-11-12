@@ -7,9 +7,17 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
+/**
+ * 登录与权限相关的用户查询 Mapper（注解式 SQL，无 XML）。
+ *
+ * 账号类查询都过滤 del_flag='0' 并按账号 LIMIT 1；角色/权限查询不校验用户删除标记，
+ * 只按角色、菜单各自的状态过滤。
+ * 这里刻意把 password 列一起查出来，登录校验需要它，返回前端前由调用方置空。
+ */
 @Mapper
 public interface SysUserMapper {
 
+    /** 按登录名查（登录入口用）：已逻辑删除的账号查不到，返回 null */
     @Select("""
             SELECT u.user_id, u.user_name, u.nick_name, u.email, u.phonenumber,
                    u.sex, u.avatar, u.password, u.status, u.del_flag
@@ -20,6 +28,7 @@ public interface SysUserMapper {
             """)
     UserInfo selectByUserName(@Param("userName") String userName);
 
+    /** 按主键查（用 token 里的 userId 换取当前用户信息） */
     @Select("""
             SELECT u.user_id, u.user_name, u.nick_name, u.email, u.phonenumber,
                    u.sex, u.avatar, u.password, u.status, u.del_flag

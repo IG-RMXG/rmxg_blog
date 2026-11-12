@@ -14,6 +14,7 @@ server:
 
 spring:
   application:
+    # 服务名同时决定日志文件名：logback 用 spring.application.name 拼出 logs/blog-service.log
     name: blog
 
   # 与 system-service 共用 ry-cloud 库：
@@ -33,14 +34,20 @@ spring:
       password: ${BLOG_REDIS_PASSWORD:}
       database: ${BLOG_REDIS_DATABASE:0}
 
+  # 接口时间统一按东八区序列化。数据源 URL 里的 serverTimezone=Asia/Shanghai 只负责
+  # 按东八区解析 DATETIME；Jackson 默认用 UTC 输出 Date，不显式指定会少 8 小时。
   jackson:
     time-zone: GMT+8
 
+  # 上传体积上限：单文件 10MB、单次请求 10MB。
+  # 超限时 Tomcat 在解析 multipart 阶段就抛 MaxUploadSizeExceededException，请求进不到 Controller。
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
 
+# 下划线列名到驼峰属性的自动映射（cover_url -> coverUrl、publish_time -> publishTime）。
+# blog_* 表全部按下划线命名、实体字段按驼峰写，关掉后这些列会映射成 null。
 mybatis:
   configuration:
     map-underscore-to-camel-case: true

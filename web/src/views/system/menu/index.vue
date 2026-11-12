@@ -1,5 +1,6 @@
 <template>
    <div class="app-container">
+      <!-- 搜索区：菜单是树形数据、接口一次性返回全量，因此没有分页，只按名称/状态过滤 -->
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
          <el-form-item label="菜单名称" prop="menuName">
             <el-input
@@ -26,6 +27,7 @@
          </el-form-item>
       </el-form>
 
+      <!-- 工具栏：新增受 system:menu:add 控制；展开/折叠只改前端展开状态，不重新请求后端 -->
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
             <el-button
@@ -47,6 +49,7 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <!-- 树形表格：row-key=menuId 配合 tree-props 展开子级；default-expand-all 只在表格重建时生效 -->
       <el-table
          v-if="refreshTable"
          v-loading="loading"
@@ -86,6 +89,8 @@
       <!-- 添加或修改菜单对话框 -->
       <el-dialog :title="title" v-model="open" width="680px" append-to-body>
          <el-form ref="menuRef" :model="form" :rules="rules" label-width="100px">
+            <!-- 菜单类型 M 目录 / C 菜单 / F 按钮 是下面各字段显隐的总开关：
+                 目录只做分组；菜单才有路由名称、组件路径、缓存；按钮只保留名称、排序、权限字符与状态 -->
             <el-row>
                <el-col :span="24">
                   <el-form-item label="上级菜单">
@@ -289,29 +294,46 @@
 </template>
 
 <script setup name="Menu">
+/**
+ * 菜单管理页（树形、无分页）。
+ * 职责：维护 sys_menu 里的目录 / 菜单 / 按钮节点，只负责录入配置，角色授权在角色管理页完成。
+ * 接口：@/api/system/menu（/system/menu 前缀）。list 返回扁平数组，由 handleTree 在前端组装成树，
+ *       不能按分页结构取 res.rows。
+ * 权限点：system:menu:add / system:menu:edit / system:menu:remove，无权限时按钮由 v-hasPermi 直接不渲染。
+ * 约定：增删改成功后统一重拉整棵树，不在本地增删节点，保证 parentId 变化后层级正确。
+ */
 import { addMenu, delMenu, getMenu, listMenu, updateMenu } from "@/api/system/menu"
 import SvgIcon from "@/components/SvgIcon"
 import IconSelect from "@/components/IconSelect"
 
+// 取 app 级全局能力：useDict、resetForm、handleTree、$modal、$refs 都挂在 proxy 上
 const { proxy } = getCurrentInstance()
+// 字典：sys_show_hide = 显示状态（0 显示 / 1 隐藏），sys_normal_disable = 通用状态（0 正常 / 1 停用）
 const { sys_show_hide, sys_normal_disable } = proxy.useDict("sys_show_hide", "sys_normal_disable")
 
+// ===== 页面状态 =====
 const menuList = ref([])
 const open = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const title = ref("")
 const menuOptions = ref([])
+// isExpandAll 是目标展开状态，refreshTable 用来卸载/重建表格让它真正生效（见 toggleExpandAll）
 const isExpandAll = ref(false)
 const refreshTable = ref(true)
+// 图标选择组件实例，输入框失焦时用来清掉上一次的选中态
 const iconSelectRef = ref(null)
 
+// ===== 查询条件 / 表单 / 校验 =====
+// queryParams 只声明了 menuName 与 visible（visible 当前模板未绑定，保留给接口按需使用）；
+// 状态筛选靠 v-model 在运行时补出 status 字段，所以这里没声明也会随请求发出
 const data = reactive({
   form: {},
   queryParams: {
     menuName: undefined,
     visible: undefined
   },
+  // 规则只对已渲染的 form-item 生效：F(按钮) 类型下路由地址输入框被 v-if 卸载，其 required 也随之失效
   rules: {
     menuName: [{ required: true, message: "菜单名称不能为空", trigger: "blur" }],
     orderNum: [{ required: true, message: "菜单顺序不能为空", trigger: "blur" }],
@@ -322,6 +344,7 @@ const data = reactive({
 const { queryParams, form, rules } = toRefs(data)
 
 /** 查询菜单列表 */
+// 后端给的是扁平列表，handleTree 按 menuId/parentId 就地挂上 children 后返回根节点数组
 function getList() {
   loading.value = true
   listMenu(queryParams.value).then(response => {
@@ -331,6 +354,8 @@ function getList() {
 }
 
 /** 查询菜单下拉树结构 */
+// 补一个 menuId=0 的虚拟根「主类目」，让顶级菜单（parentId=0）在树里有个可选父节点；
+// check-strictly 允许选任意层级；下拉未排除当前节点及子孙，后端只拦「上级选自己」，改层级时需人工避免倒挂
 function getTreeselect() {
   menuOptions.value = []
   listMenu().then(response => {
@@ -347,6 +372,7 @@ function cancel() {
 }
 
 /** 表单重置 */
+// 默认值等价于「新增一个目录」：类型 M、parentId=0、非外链、使用缓存、显示、正常
 function reset() {
   form.value = {
     menuId: undefined,
@@ -364,6 +390,7 @@ function reset() {
 }
 
 /** 展示下拉图标 */
+// 输入框失焦时重置图标面板的选中态，避免再次打开仍高亮上一次的选择
 function showSelectIcon() {
   iconSelectRef.value.reset()
 }
@@ -385,6 +412,7 @@ function resetQuery() {
 }
 
 /** 新增按钮操作 */
+// 行内「新增」以当前菜单为上级；工具栏入口拿不到 menuId，落到 else 分支挂为顶层(parentId=0)
 function handleAdd(row) {
   reset()
   getTreeselect()
@@ -407,6 +435,8 @@ function toggleExpandAll() {
 }
 
 /** 修改按钮操作 */
+// 先 reset 再拉详情：详情整体替换 form，避免上一次编辑的残留字段被带到这次提交；
+// 注意 getTreeselect() 内部没有 return 请求 Promise，这里的 await 并不会等下拉树就绪
 async function handleUpdate(row) {
   reset()
   await getTreeselect()
@@ -418,6 +448,7 @@ async function handleUpdate(row) {
 }
 
 /** 提交按钮 */
+// 用 menuId 是否存在区分新增/修改（reset 后为 undefined）；成功后整棵树重拉，不在本地插入节点
 function submitForm() {
   proxy.$refs["menuRef"].validate(valid => {
     if (valid) {
@@ -439,6 +470,7 @@ function submitForm() {
 }
 
 /** 删除按钮操作 */
+// 不可逆，先二次确认；有子菜单或已分配给角色时后端会拒绝删除并提示原因
 function handleDelete(row) {
   proxy.$modal.confirm('是否确认删除名称为"' + row.menuName + '"的数据项?').then(function() {
     return delMenu(row.menuId)
@@ -448,5 +480,6 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+// 页面挂载即拉取整棵菜单树（接口无分页参数）
 getList()
 </script>

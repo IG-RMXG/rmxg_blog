@@ -1,9 +1,11 @@
 <template>
   <div class="user-info-head" @click="editCropper()">
+    <!-- 头像区域：点击整块（含悬停「+」遮罩）打开裁剪弹窗 -->
     <img :src="options.img" title="点击上传头像" class="img-circle img-lg" />
     <el-dialog :title="title" v-model="open" width="800px" append-to-body @opened="modalOpened" @close="closeDialog">
       <el-row>
         <el-col :xs="24" :md="12" :style="{ height: '350px' }">
+          <!-- v-if=visible：等弹窗展开、容器有宽高后才挂载裁剪器，避免按 0 尺寸初始化导致裁剪框错位 -->
           <vue-cropper
             ref="cropper"
             :img="options.img"
@@ -18,6 +20,7 @@
           />
         </el-col>
         <el-col :xs="24" :md="12" :style="{ height: '350px' }">
+          <!-- 右侧实时预览：尺寸与位置来自裁剪器的 realTime 回调 -->
           <div class="avatar-upload-preview">
             <img :src="options.previews.url" :style="options.previews.img" />
           </div>
@@ -26,6 +29,7 @@
       <br />
       <el-row>
         <el-col :lg="2" :md="2">
+          <!-- 选图不直接上传：http-request 被空实现接管，仅把本地图读进裁剪器 -->
           <el-upload
             action="#"
             :http-request="requestUpload"
@@ -59,6 +63,13 @@
 </template>
 
 <script setup>
+/**
+ * 头像上传 / 裁剪组件（个人中心左侧头像）。
+ *
+ * 流程：选本地图 → FileReader 转 dataURL 交给裁剪器 → 裁剪结果以 avatarfile 字段
+ *      POST /system/user/profile/avatar → 用返回的 imgUrl 更新 options.img 与 user store。
+ * 裁剪参数固定 200x200、fixedBox（不可拖拽改框），输出 PNG。
+ */
 import "vue-cropper/dist/index.css"
 import { VueCropper } from "vue-cropper"
 import { uploadAvatar } from "@/api/system/user"
@@ -90,10 +101,12 @@ function editCropper() {
 
 /** 打开弹出层结束时的回调 */
 function modalOpened() {
+  // 等弹窗过渡结束再渲染裁剪器：此时容器已有宽高，过早渲染会按 0 尺寸初始化导致裁剪框错位
   visible.value = true
 }
 
 /** 覆盖默认上传行为 */
+// 空实现：阻止 el-upload 选中文件后立即 POST，改为先本地裁剪、点「提交」再上传
 function requestUpload() {}
 
 /** 向左旋转 */
@@ -114,6 +127,7 @@ function changeScale(num) {
 
 /** 上传预处理 */
 function beforeUpload(file) {
+  // 只按 MIME 前缀拦非图片；真正的扩展名白名单在后端（识别不到时统一按 png 落盘）
   if (file.type.indexOf("image/") == -1) {
     proxy.$modal.msgError("文件格式错误，请上传图片类型,如：JPG，PNG后缀的文件。")
   } else {
@@ -128,6 +142,7 @@ function beforeUpload(file) {
 
 /** 上传图片 */
 function uploadImg() {
+  // getCropBlob 是回调式 API，FormData 必须在回调里组装，否则拿到的是空 Blob
   proxy.$refs.cropper.getCropBlob(data => {
     let formData = new FormData()
     formData.append("avatarfile", data, options.filename)
@@ -142,11 +157,13 @@ function uploadImg() {
 }
 
 /** 实时预览 */
+// data 含 { url, img }：url 给预览图，img 是裁剪框的尺寸/位移样式，直接绑到 style 上
 function realTime(data) {
   options.previews = data
 }
 
 /** 关闭窗口 */
+// 丢弃未提交的裁剪结果，恢复成 store 里已保存的头像，下次打开从干净状态开始
 function closeDialog() {
   options.img = userStore.avatar
   options.visible = false
@@ -160,6 +177,7 @@ function closeDialog() {
   height: 120px;
 }
 
+/* 悬停遮罩用 :after 铺满头像块；line-height 110px 与 120px 容器高度对齐，让「+」垂直居中 */
 .user-info-head:hover:after {
   content: "+";
   position: absolute;

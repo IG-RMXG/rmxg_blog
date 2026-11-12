@@ -23,6 +23,7 @@ public final class MenuTreeUtils {
         if (menus == null || menus.isEmpty()) {
             return new ArrayList<>();
         }
+        // 按父 id 分组；每个 children 内部顺序沿用入参顺序（即 SQL 的 parent_id, order_num）
         Map<Long, List<SysMenu>> byParent = menus.stream()
                 .filter(m -> m.getParentId() != null)
                 .collect(Collectors.groupingBy(SysMenu::getParentId));
@@ -35,6 +36,7 @@ public final class MenuTreeUtils {
         }
 
         // parent_id = 0 的是顶级
+        // 注意：parentId 非 0 但父节点不在结果集的"孤儿"菜单会被丢弃，不会挂到顶级
         return menus.stream()
                 .filter(m -> m.getParentId() != null && m.getParentId() == 0L)
                 .collect(Collectors.toList());

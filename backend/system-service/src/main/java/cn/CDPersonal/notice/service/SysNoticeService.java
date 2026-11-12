@@ -9,6 +9,9 @@ import java.util.List;
 
 /**
  * 通知公告管理。
+ *
+ * 没有软删除和缓存，增删改直接落库；首页 listTop 只取 status = "0" 的公告，
+ * 因此是否对前台可见完全取决于写入的 status。
  */
 @Service
 public class SysNoticeService {
@@ -32,6 +35,7 @@ public class SysNoticeService {
         return noticeMapper.selectNoticeTop();
     }
 
+    /** 新增公告：status 由 controller 补默认值，这里不再兜底 */
     @Transactional
     public int insertNotice(SysNotice notice) {
         return noticeMapper.insertNotice(notice);

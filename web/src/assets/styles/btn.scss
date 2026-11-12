@@ -1,5 +1,14 @@
+// ============================================================================
+// 彩色按钮样式。
+//
+// 颜色全部取自 variables.module.scss 的调色板，这里以 `as *` 方式引入，
+// 可直接写 $blue / $pink 等变量名而不带命名空间前缀。
+// 用法：<button class="pan-btn blue-btn">——.pan-btn 提供尺寸、圆角与过渡，
+// 颜色类（.blue-btn 等）只负责底色，两者必须配合使用，单独用颜色类只有一块纯色背景。
+// ============================================================================
 @use './variables.module.scss' as *;
 
+// 按传入主色生成按钮：hover 时文字转为主色，并把 .pan-btn 定义的上下两条伪元素线染色
 @mixin colorBtn($color) {
   background: $color;
 
@@ -13,6 +22,7 @@
   }
 }
 
+// 调色板按钮变体：每个类只做一次 @include，新增颜色在此追加一行即可
 .blue-btn {
   @include colorBtn($blue)
 }
@@ -41,6 +51,8 @@
   @include colorBtn($yellow)
 }
 
+// 按钮基类：尺寸与过渡在这里，hover 时底色转白，靠 :before/:after 两条 2px 装饰线
+// 从左右两端展开到 100% 显出主色，形成"描边描出来"的效果
 .pan-btn {
   font-size: 14px;
   color: #fff;
@@ -81,6 +93,8 @@
   }
 }
 
+// 白色按钮：底色与文字色都声明为 #fff，单独使用时是「白底白字」，
+// 实际使用需在业务侧覆盖文字色或边框，否则按钮文字不可见
 .custom-button {
   display: inline-block;
   line-height: 1;

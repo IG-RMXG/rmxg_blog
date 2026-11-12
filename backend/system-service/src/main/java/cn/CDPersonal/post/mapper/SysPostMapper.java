@@ -64,6 +64,7 @@ public interface SysPostMapper {
             """)
     SysPost checkPostNameUnique(@Param("postName") String postName);
 
+    /** 新增岗位；@Options 把自增主键回填到 postId */
     @Insert("""
             INSERT INTO sys_post
               (post_code, post_name, post_sort, status, create_by, create_time, remark)
@@ -86,6 +87,7 @@ public interface SysPostMapper {
             """)
     int updatePost(SysPost post);
 
+    /** 物理删除（无 del_flag）；调用方需先用 countUserPostByIds 确认岗位没被用户占用 */
     @Delete("""
             <script>
             DELETE FROM sys_post WHERE post_id IN

@@ -19,6 +19,7 @@ import java.util.List;
 @Mapper
 public interface SysConfigMapper {
 
+    /** 列表条件：config_value 是等值匹配（非模糊），时间范围按 DATE() 比较，忽略时分秒 */
     @Select("""
             <script>
             SELECT config_id, config_name, config_key, config_value, config_type,
@@ -49,6 +50,7 @@ public interface SysConfigMapper {
             """)
     List<SysConfig> selectConfigList(SysConfig query);
 
+    /** 按主键取参数；是否属于内置参数由 SysConfigService.findUndeletableConfig 判定 */
     @Select("""
             SELECT config_id, config_name, config_key, config_value, config_type,
                    create_by, create_time, update_by, update_time, remark
@@ -88,6 +90,7 @@ public interface SysConfigMapper {
             """)
     int updateConfig(SysConfig config);
 
+    /** 物理删除；内置参数拦截在 controller 调 findUndeletableConfig 时完成 */
     @Delete("""
             <script>
             DELETE FROM sys_config WHERE config_id IN

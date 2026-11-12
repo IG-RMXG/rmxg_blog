@@ -26,6 +26,25 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 
+/**
+ * 拼图滑块验证码实现：不引第三方行为验证码 SDK，图片处理全部用 JDK 自带 API 完成。
+ *
+ * <p>生成流程：
+ * <ol>
+ *   <li>从配置的两个 classpath 目录各随机取一张图：底图 + 拼图模板（黑色部分为拼图块、其余为背景的蒙版）；</li>
+ *   <li>在底图上随机取一个落点，把模板对应像素抠成拼图块，并把底图上的该区域做 3x3 均值模糊、加白色描边，
+ *       使缺口在底图上可见；</li>
+ *   <li>两张图编码为 PNG 后转 Base64 返回，答案坐标只写进 Redis。</li>
+ * </ol>
+ *
+ * <p>校验约定：前端只回传拖动后的 x，服务端按 token 取答案，允许 ±2 px 误差；只比 x 不比 y，
+ * 因为 y 由后端决定并已在 CaptchaVO 中下发。校验通过不会删除 token，TTL 内同一 token 可重复校验。
+ *
+ * <p>缓存：key 为随机 UUID（即下发的 token），value 为 {@link CaptchaPointCache}，TTL 5 分钟。
+ *
+ * <p>部署边界：图片目录是通过 {@code Resource#getFile()} 按文件系统枚举的，只在以展开目录运行
+ * （IDE 运行 / target/classes）时可用；打成 jar 后需要改成读 jar 内条目才可用。
+ */
 @Service
 public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
 
@@ -36,6 +55,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
     private final RedisTemplate<Object, Object> redisTemplate;
 
     //拼图块的坐标范围
+    // 两个常量是落点相对左/上边缘的最小留白（px），同时决定了底图的最小可用尺寸，见 generateCaptcha
     private static final int BLOCK_X_RANGE = 100;
     private static final int BLOCK_Y_RANGE = 5;
 
@@ -75,6 +95,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
         String uuid = UUID.randomUUID().toString();
         CaptchaPointCache pointCache = new CaptchaPointCache(captcha.getX(), captcha.getY());
         redisTemplate.opsForValue().set(uuid, pointCache);
+        // TTL 5 分钟：过期后该 token 的校验一律失败，前端需要重新获取验证码
         redisTemplate.expire(uuid, 5, TimeUnit.MINUTES);
 
         CaptchaVO captchaVO = new CaptchaVO();
@@ -85,6 +106,12 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
         return captchaVO;
     }
 
+    /**
+     * 校验滑动位置。
+     *
+     * <p>token 不存在（过期/伪造）、取出的值类型不符都返回 false 而不是抛异常，让上层统一按「验证失败」处理。
+     * 取出的对象依赖 JSON 里的类型信息，所以这个 key 只能由本服务的 getCaptcha 写入。
+     */
     public boolean checkCaptcha(CaptchaParam captchaParam){
         Object cachedObject = redisTemplate.opsForValue().get(captchaParam.getToken());
         if(cachedObject != null){
@@ -126,6 +153,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
     private List<String> getImagesAll(String path) throws IOException {
         List<String> imageNameList = new ArrayList<>();
         Resource resource = resourceLoader.getResource(path);
+        // 只支持「目录形式」的资源：打成 jar 后 classpath 资源不是文件，getFile() 会抛 FileNotFoundException
         File file = resource.getFile();
         // 检查文件是否存在且为目录
         if (!file.exists() || !file.isDirectory()) {
@@ -166,6 +194,9 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
     /**
      * 生成验证码
      *
+     * <p>底图相对拼图块过小时（宽/高不足）返回 null，由调用方转成「验证码生成失败」。
+     * 注意本方法会就地修改传入的 original（抠图区域被模糊并描边），调用方不要复用同一个 BufferedImage。
+     *
      * @param original       原图
      * @param slidingBlock 预定义拼图模板
      * @return 验证码
@@ -183,11 +214,13 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
         int heightSubtract = originalHeight - blockHeight;
 
         //如果原图尺寸过小，则返回null
+        // 门槛与随机下界同值：widthSubtract-100 必须为正，否则 nextInt 会因参数非正抛 IllegalArgumentException
         if(widthSubtract <= 100 || heightSubtract <= 5){
             return null;
         }
 
         //生成随机坐标
+        // 区间为 [留白, 原图尺寸-拼图块尺寸)，保证拼图块右侧与底部都还能取到像素
         int x = ThreadLocalRandom.current().nextInt(widthSubtract-BLOCK_X_RANGE)+BLOCK_X_RANGE;
         int y = ThreadLocalRandom.current().nextInt(heightSubtract-BLOCK_Y_RANGE)+BLOCK_Y_RANGE;
 
@@ -202,6 +235,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
         graphics.setComposite(AlphaComposite.SrcOver);
 
         //卷积核设定
+        // 3x3 邻域均值（并非严格卷积）：对抠出的区域做一次轻度模糊降噪，让缺口边缘不那么生硬
         int[][] matrix = new int[3][3];
         int[] values = new int[9];
 
@@ -218,6 +252,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
                     original.setRGB(x + i, y + j, avgMatrix(matrix));
                 }
                 //对拼图和原图对应位置进行白色描边处理
+                // 只处理到倒数第二行/列：下面要读 i+1、j+1，最后一列/行越界会抛 ArrayIndexOutOfBounds
                 if (i != blockWidth - 1 && j != blockHeight - 1) {
                     int rightRgb = slidingBlock.getRGB(i + 1, j);
                     int downRgb = slidingBlock.getRGB(i, j + 1);
@@ -263,6 +298,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
      * @param pixels 存储像素的数组
      */
     private static void readPixel(BufferedImage img, int x, int y, int[] pixels) {
+        // 取以 (x,y) 为中心的 3x3 邻域；越界时左/上侧按镜像取值，右/下侧退化为中心像素
         int xStart = x - 1;
         int yStart = y - 1;
         int current = 0;
@@ -328,6 +364,7 @@ public class BlockPuzzleCaptchaServiceImpl implements CaptchaService {
             }
         }
         // 计算平均值后降低亮度（乘以一个小于1的系数）
+        // 实际实现是逐通道减 30（下限 0）而不是乘系数：缺口因此比周围暗一档，同时保留原图纹理
         int avgR = r / 9;
         int avgG = g / 9;
         int avgB = b / 9;

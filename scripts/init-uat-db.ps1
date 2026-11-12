@@ -15,14 +15,19 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
+# 三个常量：容器内可直接执行的 mysql 客户端命令、种子源库（DEV）、目标库（UAT）。
+# root 口令写成明文仅限本机开发容器，不要照搬到共享环境。
 $mysql = 'mysql -uroot -p123456'
 $dev = 'ry-cloud'
 $uat = 'ry-cloud-uat'
 
 Write-Host "==> 重建 $uat 库..."
+# 先 DROP 再 CREATE，保证每次执行都从干净种子开始（幂等，不残留上次数据）；
+# 字符集显式写成 utf8mb4 / utf8mb4_bin，避免继承服务端默认排序规则。
 docker exec mysql-server sh -c "$mysql -e 'DROP DATABASE IF EXISTS ``$uat``; CREATE DATABASE ``$uat`` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;'" | Out-Null
 
 Write-Host "==> 从 $dev 导出种子（容器内进行，避免编码损耗）..."
+# --no-tablespaces：MySQL 8 下不加该参数时，mysqldump 会因缺少 PROCESS 权限而报错。
 docker exec mysql-server sh -c "mysqldump -uroot -p123456 --no-tablespaces $dev > /tmp/uat-seed.sql"
 if ($LASTEXITCODE -ne 0) { throw "mysqldump 失败" }
 
@@ -36,6 +41,7 @@ docker exec mysql-server sh -c "rm -f /tmp/uat-seed.sql"
 $countSql = Join-Path $env:TEMP 'uat-count.sql'
 Set-Content -Path $countSql -Encoding ASCII -Value "SELECT 'dev', COUNT(*) FROM information_schema.tables WHERE table_schema='ry-cloud'; SELECT 'uat', COUNT(*) FROM information_schema.tables WHERE table_schema='ry-cloud-uat';"
 docker cp $countSql mysql-server:/tmp/uat-count.sql | Out-Null
+# -N 去掉表头，每行形如 "dev<TAB>45"，下面按前缀拆出各自的表数量。
 $counts = docker exec mysql-server sh -c "mysql -uroot -p123456 -N < /tmp/uat-count.sql"
 Remove-Item $countSql -ErrorAction SilentlyContinue
 $devTables = ($counts | Where-Object { $_ -like 'dev*' }) -replace 'dev\s*',''

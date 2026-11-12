@@ -24,6 +24,9 @@ import java.util.Map;
  *
  * context-path 是 /system，所以对外完整路径是 /system/schedule/job/**，
  * 需要网关额外转发 /schedule/**（见 SystemServiceForwardController）。
+ *
+ * 任务唯一性由应用层 checkJobUnique 校验（job_name + job_group），校验与写库是两步、无并发控制；
+ * 状态值为字符串：'0' 正常、'1' 暂停，改状态与删除都不触碰调度器（当前未接入 Quartz）。
  */
 @RestController
 @RequestMapping("/schedule/job")
@@ -46,6 +49,7 @@ public class SysJobController {
         return ResponseVO.success(jobService.selectJobById(jobId));
     }
 
+    // 唯一性由应用层 checkJobUnique 校验；未传 status 时默认 '1'（暂停），与前端新增表单默认的 '0'（正常）不同。
     @PostMapping
     public ResponseVO<Void> add(@RequestBody SysJob job) {
         if (!jobService.checkJobUnique(job)) {
@@ -61,6 +65,7 @@ public class SysJobController {
                 : ResponseVO.error(500, "新增失败");
     }
 
+    // 修改同样先校验唯一性（checkJobUnique 会排除自身 jobId），再整对象覆盖更新。
     @PutMapping
     public ResponseVO<Void> edit(@RequestBody SysJob job) {
         if (!jobService.checkJobUnique(job)) {
@@ -73,6 +78,7 @@ public class SysJobController {
                 : ResponseVO.error(500, "修改失败");
     }
 
+    // 列表开关入口：只更新 status，不校验取值范围，也不注册/移除触发器。
     @PutMapping("/changeStatus")
     public ResponseVO<Void> changeStatus(@RequestBody SysJob job) {
         return jobService.updateJobStatus(job.getJobId(), job.getStatus()) > 0
@@ -80,6 +86,7 @@ public class SysJobController {
                 : ResponseVO.error(500, "状态修改失败");
     }
 
+    // 用 Map 接收是因为前端可能把 jobId 传成数字或字符串；jobGroup 可选。
     @PutMapping("/run")
     public ResponseVO<Void> run(@RequestBody Map<String, Object> body) {
         Long jobId = body.get("jobId") == null ? null : Long.valueOf(String.valueOf(body.get("jobId")));
@@ -92,6 +99,7 @@ public class SysJobController {
                 : ResponseVO.error(500, "执行失败，任务不存在");
     }
 
+    // 逗号分隔多个 jobId；删除 0 条视为失败（id 不存在或已被并发删除）。
     @DeleteMapping("/{jobIds}")
     public ResponseVO<Void> remove(@PathVariable Long[] jobIds) {
         return jobService.deleteJobByIds(jobIds) > 0

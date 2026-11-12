@@ -42,6 +42,8 @@ mybatis:
 uat:
   token-expire-minutes: ${UAT_TOKEN_EXPIRE_MINUTES:30}
 
+# 日志：复用 common/core 的 logback-spring.xml（按天切割、保留 30 天），
+# 落盘为「仓库根/logs/uat-service.log」，文件名取自上面的 spring.application.name=uat。
 logging:
   level:
     root: info

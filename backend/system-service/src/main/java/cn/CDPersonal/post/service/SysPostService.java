@@ -9,6 +9,10 @@ import java.util.List;
 
 /**
  * 岗位管理。
+ *
+ * sys_post 没有逻辑删除列，deletePostByIds 是物理删除；调用方需先用
+ * hasUserPostByIds 确认岗位没有被用户占用。
+ * 岗位编码 / 名称都要求全局唯一，唯一性判断在 service 里排除自身。
  */
 @Service
 public class SysPostService {
@@ -51,6 +55,7 @@ public class SysPostService {
         return postMapper.updatePost(post);
     }
 
+    /** 物理删除；已被用户占用的岗位由 controller 用 hasUserPostByIds 先拦截 */
     @Transactional
     public int deletePostByIds(Long[] postIds) {
         return postMapper.deletePostByIds(postIds);
@@ -61,6 +66,7 @@ public class SysPostService {
         return postMapper.countUserPostByIds(postIds) > 0;
     }
 
+    /** 补默认值：排序 0、状态 "0"（正常），避免 NOT NULL / 有默认语义的列写入异常 */
     private void fillDefaults(SysPost post) {
         if (post.getPostSort() == null) {
             post.setPostSort(0);

@@ -37,6 +37,12 @@
 </template>
 
 <script setup>
+/**
+ * 安全验证弹窗：人机校验（按提示顺序点选背景图上的文字）
+ * - 显隐由父组件传入的 showVerification 控制，组件自身不持有开关状态
+ * - emits：close（取消/关闭/验证通过后关闭）、success（顺序完全正确并点击"确认"）
+ * - 校验纯前端比对，仅作为防机器人/误操作的交互门槛，安全边界仍需后端接口自行鉴权
+ */
 const props = defineProps({
   showVerification: Boolean
 })
@@ -45,8 +51,10 @@ const emit = defineEmits(['close', 'success'])
 
 const verificationImage = ref('../assets/images/verification-background.png')
 const clickedOrder = ref([])
+// 正确顺序（存的是 verificationTexts 的下标）：点击 → 安全 → 确认 → 验证，即 [2, 0, 3, 1]
 const targetOrder = ref([2, 0, 3, 1]) // Predefined order
 
+// 可点文字及其位置：style 用 top/left 百分比定位，基准是 .background-image 相对定位容器
 const verificationTexts = ref([
   { text: '安全', style: { top: '20%', left: '30%' } },
   { text: '验证', style: { top: '60%', left: '70%' } },
@@ -54,22 +62,26 @@ const verificationTexts = ref([
   { text: '确认', style: { top: '70%', left: '50%' } }
 ])
 
+// 完成条件：点击数量到位且序列与 targetOrder 完全一致（用 JSON.stringify 做有序比较，顺序不同即失败）
 const isVerificationComplete = computed(() => {
   return clickedOrder.value.length === targetOrder.value.length && 
          JSON.stringify(clickedOrder.value) === JSON.stringify(targetOrder.value)
 })
 
+// 重复点击同一文字会被忽略：已点过的项不再入栈，避免误触把顺序彻底打乱
 function handleTextClick(index) {
   if (!clickedOrder.value.includes(index)) {
     clickedOrder.value.push(index)
   }
 }
 
+// 点击空白背景即清空重来（文字上的点击带 .stop，不会冒泡到这里触发清空）
 function handleBackgroundClick() {
   // Reset if clicked on background
   clickedOrder.value = []
 }
 
+// 校验通过先抛 success 再走关闭流程，注意父组件会先后收到 success 与 close 两个事件
 function confirmVerification() {
   if (isVerificationComplete.value) {
     emit('success')
@@ -77,6 +89,7 @@ function confirmVerification() {
   }
 }
 
+// 关闭：清空已点序列，保证下次打开是干净的初始状态
 function closeVerification() {
   clickedOrder.value = []
   emit('close')
@@ -84,6 +97,7 @@ function closeVerification() {
 </script>
 
 <style scoped>
+/* 全屏遮罩：fixed 铺满视口，层级抬高以盖住页面内容 */
 .security-verification {
   position: fixed;
   top: 0;

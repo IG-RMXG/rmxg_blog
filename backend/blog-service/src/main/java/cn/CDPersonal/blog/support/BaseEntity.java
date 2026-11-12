@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+// blog_* 各实体都继承本类；公共列由各 Mapper 的 SQL 显式处理（create_time/update_time 用 NOW()），
+// 没有注册 MyBatis 自动填充处理器，别指望框架自动补。
 /**
  * 博客服务自带的实体基类（create_by / create_time / update_by / update_time / remark 等公共列）。
  *
@@ -92,6 +94,10 @@ public class BaseEntity implements Serializable {
         this.remark = remark;
     }
 
+    /**
+     * 懒初始化：返回前把 params 补成空 Map，调用方可以直接 put 而不用判空；
+     * 空 Map 因字段上的 @JsonInclude(NON_EMPTY) 不会出现在 JSON 响应里。
+     */
     public Map<String, Object> getParams() {
         if (params == null) {
             params = new HashMap<>();

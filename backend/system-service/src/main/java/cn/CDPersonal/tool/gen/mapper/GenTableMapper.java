@@ -13,11 +13,22 @@ import org.apache.ibatis.annotations.Update;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 代码生成元数据访问层。
+ *
+ * SQL 全部用注解 + 文本块内联，没有对应的 XML 文件；表结构元数据取自 MySQL 的
+ * information_schema，换数据库需要重写这几条查询。列表查询不写 LIMIT，分页由
+ * PageHelper 在 Controller/Service 外层拦截。
+ */
 @Mapper
 public interface GenTableMapper {
 
     // ==================== gen_table ====================
 
+    /**
+     * 已导入表列表：表名/注释模糊匹配，创建时间区间来自 BaseEntity.params 的 beginTime/endTime；
+     * 按 table_id 倒序（最新导入在前），本身不分页。
+     */
     @Select("""
             <script>
             SELECT table_id, table_name, table_comment, sub_table_name, sub_table_fk_name,
@@ -44,6 +55,7 @@ public interface GenTableMapper {
             """)
     List<GenTable> selectGenTableList(GenTable query);
 
+    /** 只查表头，不含列；列由 Service 二次查询后装配 */
     @Select("""
             SELECT table_id, table_name, table_comment, sub_table_name, sub_table_fk_name,
                    class_name, tpl_category, tpl_web_type, package_name, module_name,
@@ -53,12 +65,14 @@ public interface GenTableMapper {
             """)
     GenTable selectGenTableById(@Param("tableId") Long tableId);
 
+    /** 仅用于"是否已导入"判断与同步取 tableId；LIMIT 1 防止脏数据触发 TooManyResultsException */
     @Select("""
             SELECT table_id, table_name, table_comment, class_name, tpl_category, module_name, business_name
             FROM gen_table WHERE table_name = #{tableName} LIMIT 1
             """)
     GenTable selectGenTableByName(@Param("tableName") String tableName);
 
+    /** create_time 由数据库 NOW() 生成；useGeneratedKeys 回填 tableId，供紧随其后的列插入使用 */
     @Insert("""
             INSERT INTO gen_table
               (table_name, table_comment, sub_table_name, sub_table_fk_name, class_name,
@@ -74,6 +88,7 @@ public interface GenTableMapper {
     @Options(useGeneratedKeys = true, keyProperty = "tableId")
     int insertGenTable(GenTable genTable);
 
+    /** 整行覆盖表头配置，update_time 由数据库生成；不校验存在性，影响 0 行也不报错 */
     @Update("""
             UPDATE gen_table
             SET table_name = #{tableName},
@@ -99,6 +114,7 @@ public interface GenTableMapper {
             """)
     int updateGenTable(GenTable genTable);
 
+    /** 批量删除表头；关联列需调用方先删（无外键级联），collection="array" 与 @Param 对应 */
     @Delete("""
             <script>
             DELETE FROM gen_table WHERE table_id IN
@@ -111,6 +127,7 @@ public interface GenTableMapper {
 
     // ==================== gen_table_column ====================
 
+    /** 按 sort 升序返回列：前端列顺序、生成实体的字段顺序都依赖它 */
     @Select("""
             SELECT column_id, table_id, column_name, column_comment, column_type,
                    java_type, java_field, is_pk, is_increment, is_required,
@@ -122,6 +139,7 @@ public interface GenTableMapper {
             """)
     List<GenTableColumn> selectGenTableColumnListByTableId(@Param("tableId") Long tableId);
 
+    /** useGeneratedKeys 回填 columnId；create_time 由数据库生成 */
     @Insert("""
             INSERT INTO gen_table_column
               (table_id, column_name, column_comment, column_type, java_type, java_field,
@@ -135,6 +153,7 @@ public interface GenTableMapper {
     @Options(useGeneratedKeys = true, keyProperty = "columnId")
     int insertGenTableColumn(GenTableColumn column);
 
+    /** 同步数据库时先清空该表的列，再按最新表结构重建 */
     @Delete("DELETE FROM gen_table_column WHERE table_id = #{tableId}")
     int deleteGenTableColumnByTableId(@Param("tableId") Long tableId);
 
@@ -142,6 +161,7 @@ public interface GenTableMapper {
      * 只更新列的"展示配置"，不动列名/类型/主键等表结构字段。
      * 前端 gen 编辑页只允许改这些配置项。
      */
+    // 不更新 sort / is_pk / is_increment 等结构字段，这些只能由导入或"同步数据库"刷新。
     @Update("""
             UPDATE gen_table_column
             SET column_comment = #{columnComment},
@@ -161,6 +181,7 @@ public interface GenTableMapper {
             """)
     int updateGenTableColumnConfig(GenTableColumn column);
 
+    /** 与 deleteGenTableByIds 成对使用：Service 里先删列再删表头，避免留下孤儿行 */
     @Delete("""
             <script>
             DELETE FROM gen_table_column WHERE table_id IN
@@ -174,6 +195,7 @@ public interface GenTableMapper {
     // ==================== 读取 information_schema ====================
 
     /** 查指定库里的表（"导入表"对话框用，排除已导入的） */
+    // 只取 BASE TABLE（排除视图）；列已别名成驼峰，前端直接渲染；按 create_time 倒序，新表在前。
     @Select("""
             <script>
             SELECT table_name AS tableName, table_comment AS tableComment,
@@ -196,6 +218,7 @@ public interface GenTableMapper {
                                                 @Param("tableComment") String tableComment);
 
     /** 按表名列表查库表元数据（导入时用） */
+    // 调用方须保证 tableNames 非空，否则 foreach 会拼出 "IN ()" 导致 SQL 语法错误。
     @Select("""
             <script>
             SELECT table_name AS tableName, table_comment AS tableComment
@@ -212,6 +235,8 @@ public interface GenTableMapper {
                                                        @Param("tableNames") List<String> tableNames);
 
     /** 查某张表的列元数据 */
+    // 返回 information_schema 原始列（column_key/extra/is_nullable），Java 类型与控件类型由 Service 推断；
+    // ordinal_position 保证列顺序与建表顺序一致。
     @Select("""
             SELECT column_name AS columnName, column_comment AS columnComment,
                    column_type AS columnType, column_key AS columnKey,

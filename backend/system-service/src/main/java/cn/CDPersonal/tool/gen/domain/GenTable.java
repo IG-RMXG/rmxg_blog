@@ -6,6 +6,14 @@ import java.util.List;
 
 /**
  * 代码生成业务表 gen_table。
+ *
+ * 一行对应一张待生成代码的库表，字段与 gen_table 表结构一一对应；其中 columns / pkColumn
+ * 不落库，只在详情与代码预览时由 GenService 装配。
+ *
+ * 关键约定：
+ *   - genType 0=zip 压缩包、1=生成到自定义路径（当前只提供在线预览，两种都不落盘）；
+ *   - 导入时 tplCategory 默认 crud、tplWebType 默认 element-ui，树表/主子表模板未实现；
+ *   - 前端编辑页提交整表配置，列只能改展示项（见 GenService.updateGenTable）。
  */
 public class GenTable extends BaseEntity {
     private static final long serialVersionUID = 1L;
@@ -23,6 +31,8 @@ public class GenTable extends BaseEntity {
     private String tplCategory;
     /** 前端模板类型（element-ui 等） */
     private String tplWebType;
+    // 生成落点命名：packageName 决定 Java 包名，moduleName 兼作 Controller 路由首段，
+    // businessName 用作前端目录名与接口后缀，三者由表名推定后可手工改写。
     private String packageName;
     private String moduleName;
     private String businessName;
@@ -32,6 +42,7 @@ public class GenTable extends BaseEntity {
     /** 生成方式 0zip压缩包 1自定义路径 */
     private String genType;
     private String genPath;
+    /** 生成附加选项（JSON 文本），原样存取；当前预览逻辑未读取 */
     private String options;
 
     /** 列信息 */

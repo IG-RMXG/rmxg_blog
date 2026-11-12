@@ -8,6 +8,14 @@ import jakarta.validation.constraints.Size;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+/**
+ * 字典类型 sys_dict_type，即一类字典的元数据（名称 + 类型键 + 启停状态）。
+ *
+ * dictType 是业务与前端 getDicts 使用的关联键（如 sys_user_sex），全局唯一：
+ *   新增/修改前由 SysDictService.checkTypeUnique 判重（修改时排除自身）；
+ *   修改时若 dictType 变化，会级联更新 sys_dict_data.dict_type，避免字典数据挂在不存在的类型下；
+ *   仍被字典数据引用（countDictDataByType 大于 0）时不允许删除。
+ */
 public class SysDictType extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
@@ -49,6 +57,7 @@ public class SysDictType extends BaseEntity {
         this.dictName = dictName;
     }
 
+    // dictType 是跨表关联的业务键，格式限制为小写字母开头 + 数字/下划线，避免同一类型出现大小写变体
     @NotBlank(message = "字典类型不能为空")
     @Size(min = 0, max = 100, message = "字典类型类型长度不能超过100个字符")
     @Pattern(regexp = "^[a-z][a-z0-9_]*$", message = "字典类型必须以字母开头，且只能为（小写字母，数字，下滑线）")

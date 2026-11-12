@@ -37,6 +37,7 @@ public class SysDeptService {
         return deptMapper.selectDeptById(deptId);
     }
 
+    /** 新增部门：ancestors 由父部门链推导（父不存在时退化为 "0"），父部门存在性由 controller 先校验 */
     @Transactional
     public int insertDept(SysDept dept) {
         fillDefaults(dept);
@@ -68,6 +69,7 @@ public class SysDeptService {
         return rows;
     }
 
+    // 调用前 controller 已确认该部门没有下级部门、也没有用户。
     /** 软删部门（del_flag = '2'） */
     @Transactional
     public int deleteDeptById(Long deptId) {

@@ -15,6 +15,7 @@ public class LoginParam implements Serializable {
     private String password;
     /** 验证码，当前登录流程未强制校验，保留字段以兼容前端 */
     private String code;
+    /** 验证码标识（与 code 配套），预留字段，当前流程未使用 */
     private String uuid;
 
     public String getUsername() {

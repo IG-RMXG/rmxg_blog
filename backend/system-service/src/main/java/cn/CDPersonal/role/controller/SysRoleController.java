@@ -53,6 +53,8 @@ public class SysRoleController extends BaseController {
     /** GET /system/role/list —— 分页，前端读 rows / total */
     @GetMapping("/role/list")
     public TableDataInfo list(SysRole query) {
+        // PageHelper 把分页参数放在 ThreadLocal 上，startPage() 必须紧贴查询调用，
+        // 否则分页参数可能串到同线程的下一次查询。
         startPage();
         return PageUtils.getDataTable(roleService.selectRoleList(query));
     }
@@ -129,6 +131,7 @@ public class SysRoleController extends BaseController {
     /** DELETE /system/role/{roleIds} —— 批量软删，admin(roleId=1) 不允许删 */
     @DeleteMapping("/role/{roleIds}")
     public ResponseVO<Void> remove(@PathVariable Long[] roleIds) {
+        // 先整体校验再删：只要有一个角色是超管或已分配用户，整批都不执行，避免只删掉一半。
         for (Long roleId : roleIds) {
             if (roleId == null) {
                 continue;
@@ -180,6 +183,7 @@ public class SysRoleController extends BaseController {
     @PutMapping("/role/authUser/cancelAll")
     public ResponseVO<Void> cancelAuthUserAll(@RequestParam("roleId") Long roleId,
                                               @RequestParam("userIds") String userIds) {
+        // 不校验影响行数：批量取消 0 行也算成功，前端刷新列表即可。
         roleService.deleteAuthUsers(roleId, parseLongArray(userIds));
         return ResponseVO.success();
     }
@@ -188,6 +192,7 @@ public class SysRoleController extends BaseController {
     @PutMapping("/role/authUser/selectAll")
     public ResponseVO<Void> selectAuthUserAll(@RequestParam("roleId") Long roleId,
                                               @RequestParam("userIds") String userIds) {
+        // 底层是 INSERT IGNORE，重复勾选已授权用户不会报错，因此固定返回成功。
         roleService.insertAuthUsers(roleId, parseLongArray(userIds));
         return ResponseVO.success();
     }

@@ -7,6 +7,7 @@
     <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
     <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
 
+    <!-- 右侧工具区：小屏只保留头像下拉，其余图标（源码/文档/全屏/主题/字号）在移动端隐藏 -->
     <div class="right-menu">
       <template v-if="appStore.device !== 'mobile'">
         <header-search id="header-search" class="right-menu-item" />
@@ -58,6 +59,8 @@
 </template>
 
 <script setup>
+// 顶部导航栏：左侧为汉堡按钮 + 面包屑/顶部菜单（由 topNav 开关二选一），
+// 右侧为工具入口与用户头像下拉（个人中心 / 布局设置 / 退出登录）。
 import { ElMessageBox } from 'element-plus'
 import Breadcrumb from '@/components/Breadcrumb'
 import TopNav from '@/components/TopNav'
@@ -77,10 +80,12 @@ const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 
+// 汉堡按钮：只切换折叠状态，真正的宽度变化由 app store 的 sidebar.opened 驱动
 function toggleSideBar() {
   appStore.toggleSideBar()
 }
 
+// 头像下拉的命令分发：「个人中心」是 router-link 直达，不会走到这里
 function handleCommand(command) {
   switch (command) {
     case "setLayout":
@@ -94,6 +99,8 @@ function handleCommand(command) {
   }
 }
 
+// 退出登录：二次确认 → 清空 token 与用户信息 → location.href 整页跳到 /index。
+// 用整页跳转而非路由跳转，是为了让应用重新加载，清掉内存中的路由、store 与标签页缓存
 function logout() {
   ElMessageBox.confirm('确定注销并退出系统吗？', '提示', {
     confirmButtonText: '确定',
@@ -106,17 +113,20 @@ function logout() {
   }).catch(() => { })
 }
 
+// 只向父级抛 setLayout：设置抽屉挂在 layout/index.vue 上，本组件不直接持有它
 const emits = defineEmits(['setLayout'])
 function setLayout() {
   emits('setLayout')
 }
 
+// 明暗切换由 vueuse 的 useDark 实现（自动给 html 加 dark 类并持久化），store 只做状态转发
 function toggleTheme() {
   settingsStore.toggleTheme()
 }
 </script>
 
 <style lang='scss' scoped>
+/* 高度 50px 与 AppMain.vue 里的高度补偿值（50 = navbar）强耦合，调整时两处必须同步 */
 .navbar {
   height: 50px;
   overflow: hidden;

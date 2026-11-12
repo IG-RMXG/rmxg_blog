@@ -19,6 +19,9 @@ import java.util.List;
 public class SysDept extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 本类同时充当列表查询对象（只用 deptName/status 过滤）和结果对象（parentName 由查询带出、children 由前端 handleTree 构建）。
+    // ancestors 不接收前端传值：新增/修改时由 SysDeptService.buildAncestors 按 parentId 重新计算。
+
     /** 部门 id */
     @Excel(name = "部门ID", cellType = Excel.ColumnType.NUMERIC)
     private Long deptId;
@@ -164,6 +167,7 @@ public class SysDept extends BaseEntity {
         this.children = children;
     }
 
+    // 不打印 remark：sys_dept 没有该列，输出 null 只会在排查时把"备注未填"误当成数据问题
     @Override
     public String toString() {
         return new ToStringBuilder(this, ToStringStyle.MULTI_LINE_STYLE)

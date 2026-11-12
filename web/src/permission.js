@@ -1,3 +1,14 @@
+/*
+ * 全局路由守卫。本模块在被 import 时立即执行注册，因此 main.js 里只写 import './permission'，
+ * 不导出任何东西即可生效；导入顺序必须在 router 之后（守卫依赖 router 单例）。
+ *
+ * 判定顺序是固定契约，不要调换：
+ *   1. 先按路径分流：/portal/** 走博客门户逻辑，其余路径走若依后台逻辑；
+ *   2. 后台分支再按「有 token / 无 token」二分；有 token 但 roles 为空时才 getInfo + generateRoutes，
+ *      以 roles 非空作为「已完成初始化」的标记，避免每次跳转都重复请求菜单；
+ *   3. 每个提前 return 或重定向的分支都要手动 NProgress.done()，afterEach 再兜底一次，
+ *      否则进度条会一直挂在页面顶部。
+ */
 import router from './router'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
@@ -18,6 +29,8 @@ NProgress.configure({ showSpinner: false })
 // 未登录访问 /index 会被下面的 else 分支重定向到 /login?redirect=/index，登录后再跳回。
 const whiteList = ['/login', '/register']
 
+// 白名单是通配符匹配（isPathMatch 支持 * 单段、** 多段），不是字符串相等，
+// 好处是以后加 /portal/* 之类的规则不用逐条枚举；代价是规则写宽了会误放行，评审时留意。
 const isWhiteList = (path) => {
   return whiteList.some(pattern => isPathMatch(pattern, path))
 }
@@ -119,6 +132,8 @@ router.beforeEach((to, from, next) => {
   }
 })
 
+// 兜底结束进度条：上面各分支已按需调用 done（幂等），这里主要覆盖 getInfo / generateRoutes
+// 抛错、addRoute 后重定向等异常路径，保证无论走哪条分支进度条都不会停在页面上。
 router.afterEach(() => {
   NProgress.done()
 })

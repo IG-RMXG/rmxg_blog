@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class UatFakeLoginService implements ApplicationRunner {
 
     private static final String TOKEN_PREFIX = "login_tokens:";
+    /** 会话 JSON 里 ipaddr 的占位值：假登录不记录真实来源 IP，也方便在 Redis 里认出这类会话 */
     private static final String IP_MARK = "uat-fake-login";
 
     /** 角色编码 -> 测试账号用户名 / 角色绑定（role_id 对应 dump 自 dev 的 ry-cloud-uat） */
@@ -37,6 +38,7 @@ public class UatFakeLoginService implements ApplicationRunner {
             "user", "uat_user"
     );
 
+    /** 会话 TTL（分钟），可用 UAT_TOKEN_EXPIRE_MINUTES 覆盖；数值必须与 UAT 的 system-service 续期时长一致 */
     @Value("${uat.token-expire-minutes:30}")
     private long expireMinutes;
 
@@ -56,6 +58,7 @@ public class UatFakeLoginService implements ApplicationRunner {
      * @return token、userId、用户名、角色列表、有效期
      */
     public Map<String, Object> fakeLogin(String role) {
+        // 角色名宽松匹配（忽略大小写与首尾空格），但不做默认降级：拿不到映射就明确报 400
         String userName = ROLE_USERS.get(role == null ? "" : role.trim().toLowerCase());
         if (userName == null) {
             throw new IllegalArgumentException("role 仅支持 admin / user");
@@ -65,13 +68,17 @@ public class UatFakeLoginService implements ApplicationRunner {
             // 正常不会发生：启动时已 ensure；除非账号被人为停用
             throw new IllegalStateException("测试账号未就绪：" + userName);
         }
+        // Map 里的主键类型由 JDBC 驱动决定（Long / BigInteger 等），统一按 Number 取 longValue 避免强转失败
         Long userId = ((Number) user.get("userId")).longValue();
 
+        // token 是随机串而非 JWT：是否有效只取决于 Redis 里有没有 login_tokens:<token>，
+        // 因此删除该键就等价于登出；去掉横线只是为了统一 token 形态。
         String token = UUID.randomUUID().toString().replace("-", "");
         writeSession(token, userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
+        // TTL 以分钟配置，对外统一暴露成"秒"，调用方不必再换算
         result.put("expiresIn", expireMinutes * 60);
         result.put("userId", userId);
         result.put("userName", userName);
@@ -109,6 +116,7 @@ public class UatFakeLoginService implements ApplicationRunner {
             Map<String, Object> user = userMapper.selectByUserName(userName);
             if (user == null) {
                 userMapper.insertUser(userName, nickName);
+                // insertUser 不回填自增主键，必须再查一次才能拿到 userId
                 user = userMapper.selectByUserName(userName);
             }
             Long userId = ((Number) user.get("userId")).longValue();

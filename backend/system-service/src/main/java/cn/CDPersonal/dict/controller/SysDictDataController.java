@@ -23,6 +23,8 @@ import java.util.List;
  *   POST   /system/dict/data                新增
  *   PUT    /system/dict/data                修改
  *   DELETE /system/dict/data/{dictCodes}    删除（支持逗号分隔多个）
+ *
+ * 注意：server.servlet.context-path 已是 /system，这里只写 /dict/data。
  */
 @RestController
 @RequestMapping("/dict/data")
@@ -51,6 +53,7 @@ public class SysDictDataController extends BaseController {
         return ResponseVO.success(dictService.selectDataById(dictCode));
     }
 
+    /** 新增字典项：status / isDefault 未传时补 "0" / "N"，createBy 取当前登录用户（取不到时为空串） */
     @PostMapping
     public ResponseVO<Void> add(@Validated @RequestBody SysDictData dictData) {
         if (dictData.getStatus() == null) {
@@ -65,6 +68,7 @@ public class SysDictDataController extends BaseController {
                 : ResponseVO.error(ResponseStatus.INTERNAL_SERVER_ERROR.getCode(), "新增失败");
     }
 
+    /** 修改字典项：按 dict_code 全量覆盖，不校验 dict_type 是否已在类型表登记 */
     @PutMapping
     public ResponseVO<Void> edit(@Validated @RequestBody SysDictData dictData) {
         dictData.setUpdateBy(LoginUserHolder.getUserName());

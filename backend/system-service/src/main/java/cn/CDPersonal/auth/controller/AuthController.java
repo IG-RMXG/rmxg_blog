@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/auth")
 public class AuthController {
 
+    // 依赖均为无状态单例；本类不缓存登录态，每次请求都按 token 现查
     private final SysUserService sysUserService;
     private final TokenService tokenService;
 
@@ -28,6 +29,12 @@ public class AuthController {
         this.tokenService = tokenService;
     }
 
+    /**
+     * 登录入口。校验失败（账号不存在/停用/密码错）统一转 400 并把 message 原样透出，
+     * 前端 request.js 据此弹提示；成功时 LoginVO 放在 ResponseVO.data 里，字段名已对齐前端 setToken。
+     * 登录接口本身不校验图形验证码：滑块验证由前端调网关 /captcha 单独完成，
+     * LoginParam 的 code/uuid 仅为兼容前端表单。
+     */
     @RequestMapping(value = "/login", method = RequestMethod.POST)
     public ResponseVO<LoginVO> login(@RequestBody LoginParam loginParam, HttpServletRequest request) {
         try {
@@ -37,6 +44,7 @@ public class AuthController {
         }
     }
 
+    /** 退出登录：只删 Redis 中的会话，token 本身无状态，无其它清理动作 */
     @RequestMapping(value = "/logout", method = RequestMethod.DELETE)
     public ResponseVO<Void> logout(HttpServletRequest request) {
         tokenService.deleteToken(request);

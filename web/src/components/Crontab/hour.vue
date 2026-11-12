@@ -1,4 +1,5 @@
 <template>
+    <!-- 小时维度的四种互斥写法；区间/步长的上界为 23 -->
     <el-form>
         <el-form-item>
             <el-radio v-model='radioValue' :value="1">
@@ -34,7 +35,10 @@
 </template>
 
 <script setup>
+// 「小时」维度编辑器：结构与 second.vue 同构，字段名 hour、取值 0-23；
+// 额外承担一次「降级收窄」：小时字段一变，仍为 * 的分/秒会被压成 0（见 changeRadioValue）。
 const emit = defineEmits(['update'])
+// cron：父组件汇总的表达式对象，用于反解析回显与联动判断；check：父组件注入的整数夹紧函数
 const props = defineProps({
     cron: {
         type: Object,
@@ -54,13 +58,16 @@ const props = defineProps({
         }
     }
 })
+// radioValue 模式：1=* 2=区间 3=步长 4=枚举
 const radioValue = ref(1)
 const cycle01 = ref(0)
 const cycle02 = ref(1)
 const average01 = ref(0)
 const average02 = ref(1)
 const checkboxList = ref([])
+// 保存最后一次非空枚举，多选被清空时兜底
 const checkCopy = ref([0])
+// 三个 computed 兼做「夹紧输入」与「拼片段」，夹紧结果写回 ref 让输入框同步
 const cycleTotal = computed(() => {
     cycle01.value = props.check(cycle01.value, 0, 22)
     cycle02.value = props.check(cycle02.value, cycle01.value + 1, 23)
@@ -74,8 +81,12 @@ const averageTotal = computed(() => {
 const checkboxString = computed(() => {
     return checkboxList.value.join(',')
 })
+// 父组件改写 hour 时回显；模式或片段变化时回写父组件
 watch(() => props.cron.hour, value => changeRadioValue(value))
 watch([radioValue, cycleTotal, averageTotal, checkboxString], () => onRadioChange())
+// 按 * → 区间(-) → 步长(/) → 枚举 识别写法
+// 前置修正：小时字段任意变化时，先把仍为 * 的分、秒压成 0，避免组合出「每小时每分钟每秒都跑」的表达式；
+// 该修正不看小时最终取值，小时被置为 * 时同样会执行
 function changeRadioValue(value) {
     if (props.cron.min === '*') {
         emit('update', 'min', '0', 'hour')
@@ -100,6 +111,7 @@ function changeRadioValue(value) {
         radioValue.value = 4
     }
 }
+// 枚举模式去重转数字后回写；列表清空时补回上次选择，避免发出空片段
 function onRadioChange() {
     switch (radioValue.value) {
         case 1:
@@ -124,6 +136,7 @@ function onRadioChange() {
 </script>
 
 <style lang="scss" scoped>
+/* 数字输入框与下拉框左右留白，下拉框定宽保证四个单选行左边缘对齐 */
 .el-input-number--small, .el-select, .el-select--small {
     margin: 0 0.2rem;
 }

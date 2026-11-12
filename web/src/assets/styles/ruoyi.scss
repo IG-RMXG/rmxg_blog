@@ -3,7 +3,17 @@
  * Copyright (c) 2019 ruoyi
  */
 
+// ---------------------------------------------------------------------------
+// 文件职责：若依脚手架沉淀的通用布局与工具类，由 index.scss 统一引入，业务页几乎都会用到。
+// 板块顺序：间距工具类 → 表单/表格/弹窗 → 分页 → 卡片/按钮/文字色 → 图片/拖拽/分栏。
+// 约定：凡是颜色相关规则优先用 var(--el-*) / var(--splitpanes-*) 等变量，
+// 这样暗黑模式（html.dark）切换时无需改动本文件即可自动跟随。
+// ---------------------------------------------------------------------------
+
 /** 基础通用 **/
+// 间距工具类命名：pt/pr/pb/pl 为 padding-top/right/bottom/left，mt/mr/mb/ml 为 margin-*，
+// 后缀数字即像素值（如 .mt10 = margin-top:10px），
+// 这些小数值类在表单行、表格工具栏里高频使用，改值会波及大量页面，务必谨慎
 .pt5 {
   padding-top: 5px;
 }
@@ -60,13 +70,17 @@
   color: inherit;
 }
 
+// 表单标签加粗：与查询区、编辑弹窗保持统一的视觉层级
 .el-form .el-form-item__label {
   font-weight: 700;
 }
+// 非全屏弹窗的顶部间距压缩到 6vh：组件库默认 15vh，小屏下会把弹窗底部按钮挤出视口
 .el-dialog:not(.is-fullscreen) {
   margin-top: 6vh !important;
 }
 
+// 长表单弹窗（额外加 .scrollbar 类）：内容区限高 70vh 并内部滚动，
+// 保证"确定/取消"所在的底部区域始终可见，横向滚动一并禁用
 .el-dialog.scrollbar .el-dialog__body {
   overflow: auto;
   overflow-x: hidden;
@@ -74,6 +88,7 @@
   padding: 10px 20px 0;
 }
 
+// 表头统一 40px 高、浅灰底与 13px 字号；操作列里图标与文字之间的间距收紧到 1px
 .el-table {
   .el-table__header-wrapper, .el-table__fixed-header-wrapper {
     th {
@@ -92,6 +107,7 @@
 }
 
 /** 表单布局 **/
+// 表单分组标题：把长表单切成「基本信息 / 扩展信息」等区块，靠底部分割线与主表单区分
 .form-header {
   font-size:15px;
   color:#6379bb;
@@ -101,6 +117,7 @@
 }
 
 /** 表格布局 **/
+// 分页容器整体靠右，与上方表格留 20px 间距；背景透明以免和卡片底色叠加
 .pagination-container {
   display: flex;
   justify-content: flex-end;
@@ -134,6 +151,7 @@
 }
 
 /* tree border */
+// 树选择 / 树形表格的外框：统一圆角与边框颜色，外观与同行的输入框保持一致
 .tree-border {
   margin-top: 5px;
   border: 1px solid var(--el-border-color-light, #e5e6e7);
@@ -171,6 +189,7 @@
   padding-right: 0;
 }
 
+// 详情页键值列表：上下边框各 1px，用 margin-bottom:-1px 让相邻项的分隔线叠成一条
 .list-group {
   padding-left: 0px;
   list-style: none;
@@ -184,10 +203,12 @@
   font-size: 13px;
 }
 
+// 右浮动工具类：表格右上方放「新增 / 删除 / 导出」按钮组时使用
 .pull-right {
   float: right !important;
 }
 
+// 卡片头/内容区内边距微调：组件库默认偏大，列表页包一层卡片会显得松散
 .el-card__header {
   padding: 14px 15px 7px !important;
   min-height: 40px;
@@ -202,6 +223,7 @@
 }
 
 /* button color */
+// 自定义青色按钮：正常/hover/激活三态分别声明，避免被主题色按钮的默认样式覆盖
 .el-button--cyan.is-active,
 .el-button--cyan:active {
   background: #20B2AA;
@@ -261,6 +283,7 @@
   height: 120px;
 }
 
+// 头像上传后的圆形预览：200px 圆形 + 投影，overflow 裁掉超出圆形的部分
 .avatar-upload-preview {
   position: absolute;
   top: 50%;
@@ -273,6 +296,7 @@
 }
 
 /* 拖拽列样式 */
+// vuedraggable 拖动时由库自动加到被拖项上的类，半透明绿底用来提示「可放置位置」
 .sortable-ghost{
   opacity: .8;
   color: #fff!important;
@@ -285,6 +309,7 @@
 }
 
 /* 分割面板样式 */
+// splitpanes 默认主题的窗格底色改用 CSS 变量，跟随亮色/暗黑主题切换
 .splitpanes.default-theme .splitpanes__pane {
   background-color: var(--splitpanes-default-bg) !important;
 }

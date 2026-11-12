@@ -42,6 +42,7 @@ public class UserProfileVO implements Serializable {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /** 个人中心详情：用户对象与逗号拼接的角色名 / 岗位名一次性装好 */
     public static UserProfileVO of(SysUser user, String roleGroup, String postGroup) {
         UserProfileVO vo = new UserProfileVO();
         vo.setData(user);
@@ -56,6 +57,10 @@ public class UserProfileVO implements Serializable {
         return vo;
     }
 
+    /**
+     * 失败兜底：只改 code / msg，data 保持 null，
+     * 前端按 code / msg 统一提示，不读 data。
+     */
     public static UserProfileVO error(String message) {
         UserProfileVO vo = new UserProfileVO();
         vo.setCode(ResponseStatus.INTERNAL_SERVER_ERROR.getCode());

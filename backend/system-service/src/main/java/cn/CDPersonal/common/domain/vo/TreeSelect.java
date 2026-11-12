@@ -30,6 +30,7 @@ public class TreeSelect implements Serializable {
     /** 父节点 id，0 为顶级 */
     private Long parentId;
 
+    // 始终返回非 null 列表（默认空数组），前端树组件不用先判空
     private List<TreeSelect> children = new ArrayList<>();
 
     /** 原始实体：部门 = deptId/deptName，菜单 = menuId/menuName */
@@ -44,6 +45,12 @@ public class TreeSelect implements Serializable {
     public TreeSelect() {
     }
 
+    /**
+     * 构造部门节点：id/label 与 deptId/deptName 同时赋值，兼容 node-key=id 与表单回填 deptId 两种用法。
+     *
+     * @param disabled 停用部门标记，前端过滤/置灰时读取，不影响节点身份
+     * @return 已填充的树节点；parentId 为 0 表示顶级部门
+     */
     public static TreeSelect ofDept(Long deptId, String deptName, Long parentId, boolean disabled) {
         TreeSelect node = new TreeSelect();
         node.setId(deptId);
@@ -55,6 +62,11 @@ public class TreeSelect implements Serializable {
         return node;
     }
 
+    /**
+     * 构造菜单节点：菜单树只用 id/label/children，不涉及 disabled 语义。
+     *
+     * @return 已填充的树节点；parentId 为 0 表示顶级菜单
+     */
     public static TreeSelect ofMenu(Long menuId, String menuName, Long parentId) {
         TreeSelect node = new TreeSelect();
         node.setId(menuId);

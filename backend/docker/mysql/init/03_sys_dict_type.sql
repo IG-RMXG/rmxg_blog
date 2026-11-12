@@ -14,6 +14,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ----------------------------
 -- Table structure for sys_dict_type
 -- ----------------------------
+-- 重建语义：重复执行会先删掉现有的字典类型表，本文件不含数据回填。
+-- dict_type 上的唯一索引保证字典类型字符串全局唯一，sys_dict_data 靠这个字符串与之关联。
 DROP TABLE IF EXISTS `sys_dict_type`;
 CREATE TABLE `sys_dict_type`  (
   `dict_id` bigint NOT NULL AUTO_INCREMENT COMMENT '字典主键',

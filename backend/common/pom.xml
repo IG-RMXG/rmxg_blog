@@ -9,6 +9,13 @@
         <version>1.0</version>
     </parent>
 
+    <!--
+      common 是聚合模块（packaging=pom），自身不含 Java 代码，只把可复用的子模块收在一起：
+        core  —— 统一响应体 ResponseVO/ResponseStatus + 全局日志配置 + 请求日志过滤器
+        redis —— RedisTemplate 自动配置与 RedisService 工具类
+      业务服务是按需依赖具体子模块（如 system-service 同时依赖 core 与 redis），
+      而不是依赖 common 本身，所以这里不声明 dependencies。
+    -->
     <artifactId>common</artifactId>
     <packaging>pom</packaging>
     <modules>

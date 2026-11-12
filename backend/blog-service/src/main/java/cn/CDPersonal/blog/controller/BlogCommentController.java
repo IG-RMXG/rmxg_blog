@@ -36,6 +36,7 @@ public class BlogCommentController extends BlogBaseController {
     /** 评论管理列表（管理员，分页） */
     @GetMapping("/list")
     public TableDataInfo list(BlogComment query) {
+        // 非管理员（含未登录）返回空表：审核数据不对外暴露，同时避免表格组件因 401/403 弹错
         if (!isAdmin()) {
             return PageUtils.getDataTable(null);
         }
@@ -49,6 +50,9 @@ public class BlogCommentController extends BlogBaseController {
         if (!isLogin()) {
             return unauthorized();
         }
+        // 这里没有 startPage()，所以是一次性返回该文章的全部正常评论，不分页；
+        // 父子回复由前端按 parentId 自行组装（Service 返回的是扁平列表）。
+        // 边界：不校验文章是否存在/是否可见，登录用户传任意 articleId 都能读到该文章的正常评论。
         BlogComment query = new BlogComment();
         query.setArticleId(articleId);
         query.setStatus(BlogCommentService.STATUS_NORMAL);
@@ -61,6 +65,8 @@ public class BlogCommentController extends BlogBaseController {
         if (!isLogin()) {
             return unauthorized();
         }
+        // 这里只挡明显非法的入参；parentId 缺省 0、"先展示后审核"的默认状态、
+        // 以及所属文章 comment_count +1 都在 Service 的同一个事务里完成。
         if (comment.getArticleId() == null) {
             return ResponseVO.error(500, "文章ID不能为空");
         }
@@ -79,6 +85,7 @@ public class BlogCommentController extends BlogBaseController {
         if (!isAdmin()) {
             return forbidden("仅管理员可审核评论");
         }
+        // status：0=正常（前台展示） 1=隐藏（审核不通过，仅管理端可见）；其余取值不校验，直接落库
         Long commentId = asLong(body.get("commentId"));
         String status = body.get("status") == null ? null : String.valueOf(body.get("status"));
         if (commentId == null || status == null || status.isBlank()) {
@@ -95,11 +102,17 @@ public class BlogCommentController extends BlogBaseController {
         if (!isAdmin()) {
             return forbidden("仅管理员可删除评论");
         }
+        // 物理删除且不级联清理 parentId 指向它的回复；评论数回减由 Service 逐条处理，
+        // 因此入参里不存在的 id 会被静默跳过。
         return commentService.deleteCommentByIds(commentIds) > 0
                 ? ResponseVO.success()
                 : ResponseVO.error(500, "删除失败");
     }
 
+    /**
+     * 宽松解析 JSON 数字：Map 反序列化后小整数是 Integer、大整数是 Long，前端也可能传字符串；
+     * 统一收敛为 Long，解析失败返回 null，由调用方按"参数不完整"处理。
+     */
     private Long asLong(Object value) {
         if (value == null) {
             return null;

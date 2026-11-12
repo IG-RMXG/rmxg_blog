@@ -10,6 +10,9 @@ import cn.CDPersonal.common.domain.model.BaseEntity;
 public class SysJob extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // 唯一性口径是 job_name + job_group 组合（checkJobUnique），只看名称会误判。
+    // cronExpression 仅按字符串存取，后端不解析、也不校验表达式合法性。
+
     private Long jobId;
     /** 任务名称 */
     private String jobName;

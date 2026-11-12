@@ -42,6 +42,7 @@ public class SysPostController extends BaseController {
         return ResponseVO.success(postService.selectPostById(postId));
     }
 
+    /** 新增岗位：编码、名称都要唯一，冲突时返回 500 + 业务提示 */
     @PostMapping
     public ResponseVO<Void> add(@Validated @RequestBody SysPost post) {
         if (!postService.checkPostCodeUnique(post)) {
@@ -56,6 +57,7 @@ public class SysPostController extends BaseController {
                 : ResponseVO.error(500, "新增失败");
     }
 
+    /** 修改岗位：postId 必填；唯一性校验由 service 排除自身后判断 */
     @PutMapping
     public ResponseVO<Void> edit(@Validated @RequestBody SysPost post) {
         if (post.getPostId() == null) {

@@ -14,6 +14,9 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ----------------------------
 -- Table structure for sys_dict_data
 -- ----------------------------
+-- 重建语义：重复执行会先删表，再由文件末尾的 INSERT 回填 RuoYi 标准字典数据。
+-- sys_dict_data 与 sys_dict_type 之间没有外键，只靠 dict_type 字符串对应；
+-- 删除某类字典类型后，属于它的字典数据仍会留在这张表里，需要手工清理。
 DROP TABLE IF EXISTS `sys_dict_data`;
 CREATE TABLE `sys_dict_data`  (
   `dict_code` bigint NOT NULL AUTO_INCREMENT COMMENT '字典编码',

@@ -7,6 +7,7 @@
         <el-input v-model="key" size="small" :style="{ width: '260px' }" placeholder="请输入图标名称" prefix-icon="Search"
           clearable />
       </template>
+      <!-- 图标网格：单击即选中并关闭；列表可能很长，滚动交给弹窗正文区 -->
       <ul class="icon-ul">
         <li v-for="icon in iconList" :key="icon" :class="active === icon ? 'active-item' : ''" @click="onSelect(icon)">
           <div>
@@ -21,28 +22,44 @@
   </div>
 </template>
 <script setup>
+/**
+ * 图标选择弹窗。
+ *
+ * 把 @element-plus/icons-vue 的导出表一次性展开成图标名列表，支持按名称过滤后网格展示，
+ * 点击即回传并关闭。父组件 RightPanel 用它给组件的 prefix-icon / suffix-icon 选值。
+ */
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { watch } from 'vue'
 
+// iconList 是当前展示的图标名；originList 是全量快照（普通数组无需响应式），
+// 清空关键字时用它还原，省得反复重新枚举模块
 const iconList = ref([])
 const originList = []
+// 搜索关键字；下面 for 循环的变量同名会局部遮蔽它，两者含义不同，别混用
 const key = ref('')
+// 最近一次选中的图标名，只用于网格高亮；弹窗关闭时不会重置
 const active = ref('')
+// 选中结果直接回传图标名字符串，由父组件写回对应属性字段
 const emit = defineEmits(['select'])
+// 与父组件 v-model 双向绑定弹窗显隐
 const value = defineModel()
+// 模块导出即「图标名 -> 图标组件」，这里只需要名字，所以只取 Object.entries 的键
 for (const [key] of Object.entries(ElementPlusIconsVue)) {
   iconList.value.push(key)
   originList.push(key)
 }
 
+// 打开/关闭都不做重置：搜索关键字和高亮会保留到下次打开，符合「接着上次找」的使用习惯
 function onOpen() { }
 function onClose() { }
+// 点选即生效：先回传图标名再关闭，因此没有单独的「确定」按钮
 function onSelect(icon) {
   active.value = icon
   emit('select', icon)
   value.value = false
 }
 
+// 监听搜索框：按名称包含关系过滤（区分大小写）；关键字清空时直接用全量快照还原
 watch(key, (val) => {
   if (val) {
     iconList.value = originList.filter(name => name.indexOf(val) > -1)

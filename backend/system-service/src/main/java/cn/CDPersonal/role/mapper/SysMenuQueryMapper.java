@@ -19,6 +19,8 @@ import java.util.List;
 @Mapper
 public interface SysMenuQueryMapper {
 
+    // menuTypes 传 null 或空集合时不会拼 WHERE，等价于查全表；这里也不带 status / visible 过滤，
+    // 取舍见类头说明。
     /**
      * 按菜单类型查全部菜单（不组装树，service 自己建）。
      */
@@ -83,6 +85,10 @@ public interface SysMenuQueryMapper {
     @Select("SELECT COUNT(*) FROM sys_menu WHERE parent_id = #{menuId}")
     int countChildrenByParentId(@Param("menuId") Long menuId);
 
+    /**
+     * 同级（同 parentId）下菜单名是否重复。
+     * menuId 传 null 表示新增场景；传值时会排除自身，用于修改时校验。
+     */
     @Select("""
             SELECT COUNT(*) FROM sys_menu
             WHERE parent_id = #{parentId} AND menu_name = #{menuName}
@@ -92,6 +98,10 @@ public interface SysMenuQueryMapper {
                                @Param("menuName") String menuName,
                                @Param("menuId") Long menuId);
 
+    /**
+     * 新增菜单。create_time 由数据库 NOW() 生成；useGeneratedKeys 会把
+     * 自增主键回填到 menu.getMenuId()，后续角色授权依赖这个值。
+     */
     @org.apache.ibatis.annotations.Insert("""
             INSERT INTO sys_menu
               (menu_name, parent_id, order_num, path, component, query, is_frame, is_cache,
@@ -125,6 +135,10 @@ public interface SysMenuQueryMapper {
             """)
     int updateMenu(SysMenu menu);
 
+    /**
+     * 物理删除：sys_menu 没有 del_flag，删掉即不可恢复。
+     * 因此调用方需先用 countChildrenByParentId / countRoleMenuByMenuId 挡住误删。
+     */
     @org.apache.ibatis.annotations.Delete("DELETE FROM sys_menu WHERE menu_id = #{menuId}")
     int deleteMenuById(@Param("menuId") Long menuId);
 

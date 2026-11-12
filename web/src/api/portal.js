@@ -6,6 +6,10 @@ import request from '@/utils/request'
  * 对应后端 BlogPortalController（/blog/public/**）：
  * 全部是 GET、无需登录，游客直接浏览已发布内容。
  * 评论、写作等写操作仍然调用 @/api/blog/* 里需要登录的接口。
+ *
+ * 返回结构分两种，取数时别混：
+ *   - 详情/分类/标签/归档/热门/评论 -> ResponseVO，业务数据在 res.data；
+ *   - 文章列表 -> TableDataInfo（{ total, rows }），分页表格直接用 res.rows。
  */
 const BASE = '/blog/public'
 
@@ -18,6 +22,8 @@ export function getPortalSite() {
 }
 
 // 文章列表（分页）：categoryId / tagId / keyword / month / orderBy / pageNum / pageSize
+// month 必须是 yyyy-MM（后端用 DATE_FORMAT 精确匹配发布时间）；orderBy 只认
+// latest|hot|comments，其他值都落到默认分支（置顶优先 + 发布时间倒序）。
 export function listPortalArticles(query) {
   return request({
     url: BASE + '/articles',
@@ -27,6 +33,7 @@ export function listPortalArticles(query) {
 }
 
 // 文章详情（已发布，浏览量 +1）
+// 未发布或不存在的文章统一返回业务码 404，前端按 res.code 处理即可，不要依赖 msg 文案。
 export function getPortalArticle(articleId) {
   return request({
     url: BASE + '/articles/' + articleId,
@@ -59,6 +66,7 @@ export function listPortalTags() {
 }
 
 // 归档（按月统计）
+// 返回 [{ month: 'yyyy-MM', count }]，按月份倒序，前端直接用于时间轴分组。
 export function listPortalArchive() {
   return request({
     url: BASE + '/archive',

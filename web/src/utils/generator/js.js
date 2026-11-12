@@ -1,5 +1,15 @@
 import { titleCase } from '@/utils/index'
 import { trigger } from './config'
+
+/**
+ * 脚本生成模块：把设计器 schema（conf）编译成 .vue 文件里 <script setup> 的内容。
+ * 与 html.js 严格配套，靠变量名约定衔接：html.js 模板里用到的 xxxOptions / xxxProps /
+ * xxxAction / xxxfileList / xxxBeforeUpload，都在这里生成同名常量或方法，只改一侧会生成出引用未定义的代码。
+ * type 取 'dialog' 时生成弹窗版脚本（defineModel + confirm 事件 + 打开/关闭/取消/确认回调），
+ * 否则生成页面版脚本（submitForm / resetForm）。
+ */
+
+// 值是要原样写进生成代码的表达式字符串（不是数字），所以 MB/GB 写成连除形式，便于阅读。
 // 文件大小设置
 const units = {
   KB: '1024',
@@ -14,7 +24,10 @@ const units = {
  * @return {*}
  */
 export function makeUpJs(conf, type) {
+  // 深拷贝：下面 buildOptions 会清空 dynamic 的示例 options、buildProps 会往 props.props 上写键，
+  // 直接在画布数据（activeData）上改会污染设计器
   conf = JSON.parse(JSON.stringify(conf))
+  // 按用途分桶累积，最后统一拼装：表单数据 / 校验规则 / 选项常量 / 级联 props / 方法 / 上传变量
   const dataList = []
   const ruleList = []
   const optionsList = []
@@ -64,6 +77,7 @@ function buildAttributes(
   buildData(el, dataList)
   buildRules(el, ruleList)
 
+  // 选项类元素：先生成选项常量；dataType 为 dynamic 时再额外生成 get<Xxx>Options() 取数方法
   if (el.options && el.options.length) {
     buildOptions(el, optionsList)
     if (el.dataType === 'dynamic') {
@@ -77,6 +91,8 @@ function buildAttributes(
     buildProps(el, propsList)
   }
 
+  // 上传元素：生成提交地址与文件列表两个 ref，并配套生成 before-upload；
+  // 关闭自动上传时再补一个手动提交方法，否则使用者没有触发上传的入口
   if (el.action && el.tag === 'el-upload') {
     uploadVarList.push(
       `
@@ -113,8 +129,10 @@ function buildAttributes(
  * @return {*}
  */
 function buildData(conf, dataList) {
+  // 布局/按钮类元素没有 vModel，不产生 formData 字段
   if (conf.vModel === undefined) return
   let defaultValue
+  // 字符串默认值用单引号包裹以保持生成代码可读，数组/布尔/null 等交给 JSON.stringify 序列化
   if (typeof conf.defaultValue === 'string' && !conf.multiple) {
     defaultValue = `'${conf.defaultValue}'`
   } else {
@@ -134,6 +152,8 @@ function buildRules(conf, ruleList) {
   const rules = []
   if (trigger[conf.tag]) {
     if (conf.required) {
+      // 多选（默认值为数组）需额外声明 type: 'array'：数组的必填语义与空字符串不同，
+      // 提示语也随之换成「至少选择一个」
       const type = Array.isArray(conf.defaultValue) ? "type: 'array'," : ''
       let message = Array.isArray(conf.defaultValue)
         ? `请至少选择一个${conf.vModel}`
@@ -145,6 +165,7 @@ function buildRules(conf, ruleList) {
         }' }`
       )
     }
+    // regList 里的 pattern 是字符串形式的正则字面量，会被原样内联进生成代码的 new RegExp(...)
     if (conf.regList && Array.isArray(conf.regList)) {
       conf.regList.forEach((item) => {
         if (item.pattern) {
@@ -168,6 +189,7 @@ function buildRules(conf, ruleList) {
  */
 function buildOptions(conf, optionsList) {
   if (conf.vModel === undefined) return
+  // dynamic 场景清空示例数据，避免把设计器里的假选项写进生成代码，取数由 get<Xxx>Options 负责
   if (conf.dataType === 'dynamic') {
     conf.options = []
   }
@@ -197,6 +219,8 @@ function buildOptionMethod(methodName, model, methodList) {
  * @return {*}
  */
 function buildProps(conf, propsList) {
+  // dynamic 时把自定义的 value / label / children 键名映射进 props.props，
+  // 让 cascader 这类组件能识别非默认字段名的数据源；与默认键名相同则不写入，保留组件默认行为
   if (conf.dataType === 'dynamic') {
     conf.valueKey !== 'value' && (conf.props.props.value = conf.valueKey)
     conf.labelKey !== 'label' && (conf.props.props.label = conf.labelKey)
@@ -208,6 +232,8 @@ function buildProps(conf, propsList) {
   const ${conf.vModel}Props = ref(${JSON.stringify(conf.props.props)})`
   propsList.push(str)
 }
+// 只有配置了 fileSize 或 accept 才生成对应判断；两者都为空时返回空串，即不产出该方法
+
 /**
  * @name: 生成上传组件的相关内容
  * @description: 生成上传组件的相关内容
@@ -247,6 +273,9 @@ function buildBeforeUpload(conf) {
   }`
   return returnList.length ? str : ''
 }
+// 手动上传（auto-upload 为 false）时的提交方法：用 this.$refs 取上传组件实例再 submit()。
+// 这是 Options API 写法，与其余 setup 风格的生成代码不一致，放进 <script setup> 需改写
+
 /**
  * @name: 生成提交表单方法
  * @description: 生成提交表单方法
@@ -297,6 +326,8 @@ function buildexport(
     ${methods}
   `
   
+  // 弹窗形态：额外生成 visible 的双向绑定、confirm 事件与打开/关闭/取消/确认四个回调；
+  // onClose 里的 resetFields 依赖上面按 conf.formRef 生成的表单 ref 名，改 formRef 要同步这里
   if(type === 'dialog') {
     str += `
       // 弹窗设置
@@ -343,6 +374,7 @@ function buildexport(
         })
       }
     `
+  // 页面形态：只生成 submitForm / resetForm；submitForm 内只做校验，提交请求留给使用者补
   } else {
     str += `
     /**

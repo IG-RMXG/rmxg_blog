@@ -5,35 +5,41 @@ import cn.CDPersonal.blog.support.BaseEntity;
 import java.io.Serial;
 
 /**
- * 鍗氬璇勮 blog_comment
+ * 博客评论 blog_comment。
+ *
+ * <p>用 parentId 表示两级结构：0 为顶级评论，非 0 指向顶级评论的 commentId；
+ * status 为隐藏(1)时门户不展示，但后台仍可见可恢复。</p>
  */
 public class BlogComment extends BaseEntity {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 璇勮ID */
+    /** 评论ID（主键，自增） */
     private Long commentId;
 
-    /** 鏂囩珷ID */
+    /** 所属文章ID（blog_article.article_id） */
     private Long articleId;
 
-    /** 鐖惰瘎璁篒D锛? 琛ㄧず椤剁骇璇勮锛?*/
+    /** 父评论ID：0 表示顶级评论，非 0 表示回复某条顶级评论 */
     private Long parentId;
 
-    /** 璇勮鍐呭 */
+    /** 评论内容（纯文本，门户用文本插值渲染，不解析 HTML） */
     private String content;
 
-    /** 璇勮鑰呯敤鎴稩D */
+    /** 评论者用户ID（sys_user.user_id） */
     private Long userId;
 
-    /** 鐘舵€侊細0姝ｅ父 1闅愯棌 */
+    /** 状态：0正常 1隐藏 */
     private String status;
 
-    // ==================== 闈炴暟鎹簱鍒楋紙鍥炴樉锛?====================
+    // ==================== 非数据库列（回显） ====================
 
+    /** 文章标题（联表回显，非表字段） */
     private String articleTitle;
+    /** 评论者昵称（联表回显，非表字段） */
     private String nickName;
+    /** 评论者账号（联表回显，非表字段） */
     private String userName;
 
     public Long getCommentId() {

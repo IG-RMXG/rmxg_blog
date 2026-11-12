@@ -70,6 +70,7 @@ public class SysUserController extends BaseController {
     private final TokenService tokenService;
     private final SysUserManagementService userManagementService;
 
+    // 构造时就确保头像目录存在，避免首次上传（可能并发）才去创建目录
     public SysUserController(SysUserService sysUserService,
                              TokenService tokenService,
                              SysUserManagementService userManagementService) {
@@ -142,6 +143,7 @@ public class SysUserController extends BaseController {
         if (userId == null) {
             return ResponseVO.error(500, "登录状态已过期");
         }
+        // 只回填允许自助修改的四个字段；userId 强制取登录人，避免前端改 userId/status 越权
         SysUser user = new SysUser();
         user.setUserId(userId);
         user.setNickName(body.getNickName());
@@ -167,6 +169,7 @@ public class SysUserController extends BaseController {
         if (userId == null) {
             return ResponseVO.error(500, "登录状态已过期");
         }
+        // 两种传参都兼容：query 参数优先，JSON body 里的同名字段兜底（前端默认发 JSON）
         String oldPassword = oldPasswordParam;
         String newPassword = newPasswordParam;
         if (body != null) {
@@ -196,6 +199,7 @@ public class SysUserController extends BaseController {
             Files.createDirectories(uploadDir);
             String ext = resolveExtension(file.getOriginalFilename());
             String fileName = UUID.randomUUID().toString().replace("-", "") + "." + ext;
+            // 即使文件名来自前端，normalize 后仍必须落在头像目录内，防御 "../" 目录穿越
             Path target = uploadDir.resolve(fileName).normalize();
             if (!target.startsWith(uploadDir)) {
                 return UserProfileVO.error("文件名非法");

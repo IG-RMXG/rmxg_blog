@@ -2,14 +2,26 @@
 <html>
 
 <head>
+  <!-- 首屏骨架由本文件直接内联提供，早于任何 JS 执行；
+       因此下面那张 loader 的样式也写成内联 <style>，避免为了显示「加载中」再额外发一次 CSS 请求 -->
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <!-- renderer=webkit：让 360 等双核浏览器走 WebKit 极速内核，避免落入 IE 兼容内核导致白屏；
+       viewport 关掉用户缩放（user-scalable=no），保证移动端按固定视口渲染 -->
   <meta name="renderer" content="webkit">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="icon" href="/favicon.ico">
   <title>个人博客平台</title>
   <!--[if lt IE 11]><script>window.location.href='/html/ie.html';</script><![endif]-->
   <style>
+    /*
+     * 首屏 loading（纯静态，不依赖 JS 与组件库，必须在 main.js 到达前就能显示）。
+     * 结构：wrapper 铺满视口并置顶；两扇 .loader-section 各占 51% 宽，分别贴左右；
+     * #loader 用 ::before / ::after 套出三层同心圆，旋转周期 2s / 3s / 1.5s 错开，形成层次感。
+     * 层级约定：wrapper 999999 > #loader 1001 > .loader-section 1000，圆环因此始终浮在门板之上。
+     * 需要提醒的是：.loaded 系列规则要有人给根元素加 .loaded 类才会触发，目前项目里没有任何代码
+     * 添加该类，遮罩实际是靠 Vue 挂载清空 #app 内容移除的（见 main.js 末尾的 mount 调用）。
+     */
     html,
     body,
     #app {
@@ -201,6 +213,8 @@
 </head>
 
 <body>
+  <!-- Vue 挂载点。里面的 #loader-wrapper 只是首屏占位：
+       app.mount('#app') 会清空本容器的原有子节点，遮罩随之消失，无需 JS 显式删除 -->
   <div id="app">
     <div id="loader-wrapper">
       <div id="loader"></div>
@@ -209,6 +223,8 @@
       <div class="load_title">正在加载系统资源，请耐心等待</div>
     </div>
   </div>
+  <!-- 唯一入口脚本：type="module" 让浏览器按 ES Module 解析（天然 defer，不阻塞上面的骨架渲染）；
+       dev 下由 Vite 注入 HMR 客户端，build 后会被改写成带 hash 的产物路径 -->
   <script type="module" src="/src/main.js"></script>
 </body>
 

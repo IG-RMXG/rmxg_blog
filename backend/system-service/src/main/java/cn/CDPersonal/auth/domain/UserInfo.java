@@ -21,8 +21,11 @@ public class UserInfo implements Serializable {
     private String phonenumber;
     private String sex;
     private String avatar;
+    /** 密码：可能是 BCrypt 哈希，也可能是历史明文；只在登录校验内部使用，返回前端前必须置空 */
     private String password;
+    /** 账号状态：0=正常，其余视为停用，登录时直接拒绝 */
     private String status;
+    /** 逻辑删除标记：0=存在、2=已删除；所有登录/权限查询都带 del_flag='0' */
     private String delFlag;
 
     public Long getUserId() {

@@ -1,3 +1,11 @@
+/**
+ * 代码生成器（views/tool/build）的元数据配置：设计器左侧组件库、画布属性面板、最终生成代码都以这里为准。
+ * - formConf：表单级默认配置。formRef / formModel / formRules 的值就是生成代码里的变量名
+ *   （表单 ref 名、formData 对象名、rules 对象名），改动会连带改变导出的 SFC，需与 html.js、js.js 配套。
+ * - inputComponents / selectComponents / layoutComponents：组件库物料模板，拖拽时会被拷贝进画布，
+ *   因此这里只能放静态默认值；tag 决定用哪个渲染/生成分支。
+ * - trigger：组件 tag 到校验触发时机的映射，js.js 只为表内组件生成 rules。
+ */
 export const formConf = {
   formRef: 'formRef',
   formModel: 'formData',
@@ -8,9 +16,14 @@ export const formConf = {
   gutter: 15,
   disabled: false,
   span: 24,
+  // 是否输出底部「提交 / 重置」按钮；只在生成页面形态（type=file）时生效，弹窗形态自带底部按钮
   formBtns: true,
 }
 
+// 输入类物料：单行文本、多行文本、密码、计数器。
+// 各字段会被右侧属性面板直接双向编辑后写回画布元素，所以默认值要与 Element Plus 默认行为一致，
+// 否则生成代码里会多出无意义的属性；labelWidth 为 null 表示沿用表单级 label-width，
+// span 为 24 表示不额外包 el-col（见 html.js 的 colWrapper）。
 export const inputComponents = [
   {
     label: '单行文本',
@@ -106,6 +119,11 @@ export const inputComponents = [
   },
 ]
 
+// 选择类物料：下拉、级联、单选/复选框组、开关、滑块、时间/日期、评分、颜色、上传。
+// options 里的数据只是设计器里的示例，方便直观看到效果；物料支持「数据类型」切换，
+// dataType 为 'dynamic' 时生成代码会清空示例数据，改为生成 get<Xxx>Options() 空方法交给使用者自己请求，
+// 并把 valueKey / labelKey / childrenKey 映射成 props（见 js.js）；为 'static' 时直接输出示例数组。
+// 上传物料的 action 是占位地址，fileSize + sizeUnit 决定生成 before-upload 中的大小校验。
 export const selectComponents = [
   {
     label: '下拉选择',
@@ -409,6 +427,8 @@ export const selectComponents = [
   },
 ]
 
+// 布局类物料：行容器（layout 为 rowFormItem，layoutTree 表示画布中可继续拖入子元素、可多层嵌套）
+// 与按钮（layout 为 colFormItem，没有 vModel，因此不产生 formData 字段，也不参与校验）。
 export const layoutComponents = [
   {
     layout: 'rowFormItem',
@@ -437,6 +457,9 @@ export const layoutComponents = [
     document: 'https://element-plus.org/zh-CN/component/button',
   },
 ]
+
+// 注意：只有本表命中的组件才会生成校验规则；el-switch、el-slider、el-upload、el-button 等不在表内，
+// 即使物料上 required 为 true 也不会生成规则，需要时得在生成后的代码里手工补 rules。
 
 // 组件rule的触发方式，无触发方式的组件不生成rule
 export const trigger = {

@@ -1,5 +1,6 @@
 <template>
    <div class="app-container">
+      <!-- 检索区：参数名称/键名模糊匹配，系统内置取自 sys_yes_no（Y=内置），创建时间区间由 addDateRange 折成 beginTime/endTime -->
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
          <el-form-item label="参数名称" prop="configName">
             <el-input
@@ -45,6 +46,7 @@
          </el-form-item>
       </el-form>
 
+      <!-- 工具栏：新增/改删/导出按 system:config:* 权限点控制，「刷新缓存」复用 system:config:remove -->
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
             <el-button
@@ -96,6 +98,7 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <!-- 列表：后端返回 { rows, total }，参数键名/键值等长文本列用 show-overflow-tooltip 悬浮查看 -->
       <el-table v-loading="loading" :data="configList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="参数主键" align="center" prop="configId" />
@@ -121,6 +124,7 @@
          </el-table-column>
       </el-table>
 
+      <!-- 分页：pageNum/pageSize 双向绑定查询条件，total 为 0 时整块隐藏 -->
       <pagination
          v-show="total > 0"
          :total="total"
@@ -165,11 +169,22 @@
 </template>
 
 <script setup name="Config">
+/*
+ * 系统参数配置页（列表 + 新增/编辑弹窗），读写 sys_config。
+ * 接口前缀 /system/config：listConfig 分页查询、getConfig 详情、addConfig/updateConfig 写入、
+ * delConfig 批量删除、refreshCache 刷新缓存。
+ * 权限点：system:config:add / edit / remove / export。
+ * 关键规则：configKey 全局唯一（重名由后端报错）；内置参数（configType='Y' 或 configId<100）
+ * 后端一律拒删，前端不做额外拦截，失败提示由请求拦截器统一弹出。
+ */
 import { listConfig, getConfig, delConfig, addConfig, updateConfig, refreshCache } from "@/api/system/config"
 
 const { proxy } = getCurrentInstance()
 const { sys_yes_no } = proxy.useDict("sys_yes_no")
 
+// ===== 列表与弹窗状态 =====
+// single / multiple 是「反义」禁用标志：single=true 表示未恰好选中 1 行（禁用工具栏修改），
+// multiple=true 表示一行都没选（禁用删除）。
 const configList = ref([])
 const open = ref(false)
 const loading = ref(true)
@@ -181,6 +196,8 @@ const total = ref(0)
 const title = ref("")
 const dateRange = ref([])
 
+// 查询条件 / 表单 / 校验规则合放在一个 reactive 里；分页按后端约定传 pageNum/pageSize，列表返回 { rows, total }。
+// rules 只做非空校验，configKey 唯一性由后端校验并以「参数键值已存在」报错。
 const data = reactive({
   form: {},
   queryParams: {
@@ -199,6 +216,7 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+// 列表、增删改、刷新缓存后都走这里重新取数；查询条件与创建时间区间经 addDateRange 合并。
 /** 查询参数列表 */
 function getList() {
   loading.value = true
@@ -215,6 +233,7 @@ function cancel() {
   reset()
 }
 
+// 清空表单并复位校验状态；configId 置空用于判定「新增」，configType 预置 'Y' 表示弹窗默认按内置参数创建。
 /** 表单重置 */
 function reset() {
   form.value = {
@@ -255,6 +274,7 @@ function handleAdd() {
   title.value = "添加参数"
 }
 
+// 行内触发用 row.configId；工具栏触发时 row 是点击事件，回退到勾选的 ids（数组，序列化后是单个编号）。
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset()
@@ -266,6 +286,7 @@ function handleUpdate(row) {
   })
 }
 
+// 以 configId 是否存在区分新增/修改；后端没有参数缓存，保存后立即生效，不必再点「刷新缓存」。
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["configRef"].validate(valid => {
@@ -287,6 +308,7 @@ function submitForm() {
   })
 }
 
+// 二次确认后批量删除（编号逗号拼接）；命中任一内置参数时后端整批拒绝并回传该参数名。
 /** 删除按钮操作 */
 function handleDelete(row) {
   const configIds = row.configId || ids.value
@@ -298,6 +320,7 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+// 沿用当前查询条件（含分页参数）导出，文件名带时间戳避免覆盖。
 /** 导出按钮操作 */
 function handleExport() {
   proxy.download("system/config/export", {
@@ -305,6 +328,7 @@ function handleExport() {
   }, `config_${new Date().getTime()}.xlsx`)
 }
 
+// 后端为兼容保留的空实现（参数每次直接查库），成功提示只代表请求到达，不代表真的清过缓存。
 /** 刷新缓存按钮操作 */
 function handleRefreshCache() {
   refreshCache().then(() => {

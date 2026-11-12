@@ -50,6 +50,7 @@ public class UserDetailVO implements Serializable {
     /** 该用户已分配的角色 id */
     private List<Long> roleIds = new ArrayList<>();
 
+    /** 服务端时间戳，字段名与 ResponseVO 对齐 */
     private Long timestamp;
 
     public UserDetailVO() {
@@ -79,6 +80,10 @@ public class UserDetailVO implements Serializable {
         return vo;
     }
 
+    /**
+     * 失败兜底：code 改为 500，data 仍给空 SysUser 而不是 null，
+     * 前端直接 form.value = response.data 时不会因 null 报错。
+     */
     public static UserDetailVO error(String message) {
         UserDetailVO vo = new UserDetailVO();
         vo.setCode(ResponseStatus.INTERNAL_SERVER_ERROR.getCode());

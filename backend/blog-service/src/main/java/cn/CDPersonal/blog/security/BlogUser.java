@@ -5,9 +5,13 @@ package cn.CDPersonal.blog.security;
  */
 public class BlogUser {
 
+    /** sys_user.user_id */
     private Long userId;
+    /** 登录账号 */
     private String userName;
+    /** 昵称，评论/列表展示用；允许为空 */
     private String nickName;
+    /** 头像相对地址；允许为空 */
     private String avatar;
     /** 0=正常 1=停用 */
     private String status;

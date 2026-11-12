@@ -17,9 +17,13 @@ public class SysRole extends BaseEntity {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    // roleId 为空视为新增；修改时 menuIds 会整体重写 sys_role_menu（先删后插），传 null 或空集合等于清空该角色的菜单。
+
     private Long roleId;
     private String roleName;
+    // 权限标识（如 admin），登录后按它匹配菜单与按钮权限；未删除角色内唯一（checkRoleKeyUnique）
     private String roleKey;
+    // 列表按 role_sort 升序、同值再按 role_id 升序；未传时 service 默认补 0
     private Integer roleSort;
     /** 1=全部 2=自定义 3=本部门 4=本部门及以下 5=仅本人 */
     private String dataScope;

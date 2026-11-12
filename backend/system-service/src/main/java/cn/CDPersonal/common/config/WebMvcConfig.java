@@ -18,6 +18,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
+    /**
+     * 把 /profile/avatar/** 映射到磁盘上的头像目录，上传与读取共用 UploadPathUtils 的解析结果。
+     * 启动时先尽力创建目录（幂等）；注册 file: URI，避免 Spring 把相对路径当成 classpath 资源。
+     */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         UploadPathUtils.ensureAvatarDir();

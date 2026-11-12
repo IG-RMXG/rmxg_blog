@@ -1,5 +1,6 @@
 <template>
    <div class="app-container">
+      <!-- 搜索区：任务名（模糊匹配）/ 任务组 / 状态 -->
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
          <el-form-item label="任务名称" prop="jobName">
             <el-input
@@ -36,6 +37,7 @@
          </el-form-item>
       </el-form>
 
+      <!-- 工具栏：新增 / 修改 / 删除 / 导出 / 日志；按钮受 monitor:job:* 权限点与选中行数控制 -->
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
             <el-button
@@ -87,6 +89,7 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <!-- 任务列表：状态列用开关直接切启停（'0'=正常 '1'=暂停），切换前会二次确认 -->
       <el-table v-loading="loading" :data="jobList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="任务编号" width="100" align="center" prop="jobId" />
@@ -129,6 +132,7 @@
          </el-table-column>
       </el-table>
 
+      <!-- 分页：分页参数与查询条件共用同一个 queryParams，翻页后重新查询 -->
       <pagination
          v-show="total > 0"
          :total="total"
@@ -159,6 +163,7 @@
                   </el-form-item>
                </el-col>
                <el-col :span="24">
+                  <!-- 调用目标：支持「Bean名.方法(参数)」或「全限定类名.方法(参数)」，参数仅限字符串/布尔/整型/长整型/浮点型 -->
                   <el-form-item prop="invokeTarget">
                      <template #label>
                         <span>
@@ -179,6 +184,7 @@
                   </el-form-item>
                </el-col>
                <el-col :span="24">
+                  <!-- cron 表达式：可手输，也可点「生成表达式」用可视化生成器回填 -->
                   <el-form-item label="cron表达式" prop="cronExpression">
                      <el-input v-model="form.cronExpression" placeholder="请输入cron执行表达式">
                         <template #append>
@@ -190,6 +196,7 @@
                      </el-input>
                   </el-form-item>
                </el-col>
+               <!-- 状态只在编辑时出现：新增沿用 reset 里的 '0'（正常），创建后再用列表开关启停 -->
                <el-col :span="24" v-if="form.jobId !== undefined">
                   <el-form-item label="状态">
                      <el-radio-group v-model="form.status">
@@ -228,12 +235,15 @@
          </template>
       </el-dialog>
 
+     <!-- Cron 生成器：destroy-on-close 让每次打开都按最新的 expression 重建内部标签页 -->
      <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
+       <!-- @fill 只回填表达式，关闭动作由子组件的 @hide 触发 -->
        <crontab ref="crontabRef" @hide="openCron=false" @fill="crontabFill" :expression="expression"></crontab>
      </el-dialog>
 
       <!-- 任务日志详细 -->
       <el-dialog title="任务详细" v-model="openView" width="700px" append-to-body>
+         <!-- 只读详情：状态/并发/执行策略等枚举值在这里转成中文文案 -->
          <el-form :model="form" label-width="120px">
             <el-row>
                <el-col :span="12">
@@ -285,28 +295,44 @@
 </template>
 
 <script setup name="Job">
+/*
+ * 定时任务管理（菜单：系统监控 → 定时任务）。
+ *
+ * 接口：@/api/monitor/job，路径前缀 /schedule/**（网关转发到 system-service）。
+ * 字典：sys_job_group（任务组）、sys_job_status（'0'=正常 '1'=暂停）。
+ * 权限点：monitor:job:add / edit / remove / export / query / changeStatus。
+ *
+ * 现状提醒：项目尚未接入 Quartz，本页的启停开关与「执行一次」只改数据库并写一条调度日志，
+ * 不会真正触发 invokeTarget（详见 api/monitor/job.js 顶部说明）。
+ */
 import Crontab from '@/components/Crontab'
 import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from "@/api/monitor/job"
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
+// 字典由 useDict 统一拉取并缓存，模板里直接用 sys_job_group / sys_job_status
 const { sys_job_group, sys_job_status } = proxy.useDict("sys_job_group", "sys_job_status")
 
+// ===== 列表与弹窗状态 =====
 const jobList = ref([])
 const open = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
+// ids 保存选中行的 jobId；single/multiple 是由选中行数推导出来的两个按钮禁用态
 const ids = ref([])
 const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
+// 详情弹窗、Cron 生成器弹窗，以及传给生成器的初始表达式
 const openView = ref(false)
 const openCron = ref(false)
 const expression = ref("")
 
+// 表单、查询条件与校验规则集中放在 data 里再 toRefs 展开（RuoYi 模板惯例）
 const data = reactive({
   form: {},
+  // 分页参数由 <pagination> 的 v-model 写回；jobName/jobGroup/status 为查询条件
   queryParams: {
     pageNum: 1,
     pageSize: 10,
@@ -314,6 +340,7 @@ const data = reactive({
     jobGroup: undefined,
     status: undefined
   },
+  // 三个必填项与后端校验保持一致，前端先拦一次避免无效请求
   rules: {
     jobName: [{ required: true, message: "任务名称不能为空", trigger: "blur" }],
     invokeTarget: [{ required: true, message: "调用目标字符串不能为空", trigger: "blur" }],
@@ -324,6 +351,7 @@ const data = reactive({
 const { queryParams, form, rules } = toRefs(data)
 
 /** 查询定时任务列表 */
+// response 为 TableDataInfo：rows 是当前页数据，total 是总条数
 function getList() {
   loading.value = true
   listJob(queryParams.value).then(response => {
@@ -334,17 +362,20 @@ function getList() {
 }
 
 /** 任务组名字典翻译 */
+// selectDictLabel 找不到对应字典项时原样返回 value，避免表格出现空白
 function jobGroupFormat(row, column) {
   return proxy.selectDictLabel(sys_job_group.value, row.jobGroup)
 }
 
 /** 取消按钮 */
+// 关弹窗并复位表单，防止下次打开时残留上一次的数据和校验红字
 function cancel() {
   open.value = false
   reset()
 }
 
 /** 表单重置 */
+// 默认值：执行策略=1（立即执行）、并发=1（禁止）、状态 '0'（正常）；status 会随表单一起提交
 function reset() {
   form.value = {
     jobId: undefined,
@@ -356,22 +387,26 @@ function reset() {
     concurrent: 1,
     status: "0"
   }
+  // resetFields 会把各字段恢复到表单首次渲染时的值，并清掉校验提示
   proxy.resetForm("jobRef")
 }
 
 /** 搜索按钮操作 */
+// 搜索一律回到第 1 页，避免停留在末页时结果为空
 function handleQuery() {
   queryParams.value.pageNum = 1
   getList()
 }
 
 /** 重置按钮操作 */
+// 先清空输入与校验，再走 handleQuery（页码统一由它重置）
 function resetQuery() {
   proxy.resetForm("queryRef")
   handleQuery()
 }
 
 // 多选框选中数据
+// 恰好 1 行才允许「修改」（single=false），0 行时禁用「删除」（multiple=true）
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.jobId)
   single.value = selection.length != 1
@@ -379,6 +414,7 @@ function handleSelectionChange(selection) {
 }
 
 // 更多操作触发
+// 目前模板未使用（页面用的是各按钮的独立事件），保留自 RuoYi 原版的下拉菜单分发
 function handleCommand(command, row) {
   switch (command) {
     case "handleRun":
@@ -396,7 +432,10 @@ function handleCommand(command, row) {
 }
 
 // 任务状态修改
+// el-switch 的 v-model 已经先改掉 row.status，所以取消或接口失败时必须把值翻回去，
+// 否则界面显示与库里不一致（catch 分支做的就是回滚）
 function handleStatusChange(row) {
+  // 以新状态决定提示文案：'0' 正常 → 启用，'1' 暂停 → 停用
   let text = row.status === "0" ? "启用" : "停用"
   proxy.$modal.confirm('确认要"' + text + '""' + row.jobName + '"任务吗?').then(function () {
     return changeJobStatus(row.jobId, row.status)
@@ -408,6 +447,7 @@ function handleStatusChange(row) {
 }
 
 /* 立即执行一次 */
+// 只触发一次执行，不改变 cron 的下次执行时间；后端当前仅写一条成功日志，不会真正调用 invokeTarget
 function handleRun(row) {
   proxy.$modal.confirm('确认要立即执行一次"' + row.jobName + '"任务吗?').then(function () {
     return runJob(row.jobId, row.jobGroup)
@@ -417,6 +457,7 @@ function handleRun(row) {
 }
 
 /** 任务详细信息 */
+// 按 id 重新查一次取最新数据，避免详情里显示列表加载时的旧值
 function handleView(row) {
   getJob(row.jobId).then(response => {
     form.value = response.data
@@ -425,23 +466,27 @@ function handleView(row) {
 }
 
 /** cron表达式按钮操作 */
+// 把当前表达式带入生成器，便于在其基础上微调
 function handleShowCron() {
   expression.value = form.value.cronExpression
   openCron.value = true
 }
 
 /** 确定后回传值 */
+// 生成器点确定只回填表达式，关闭弹窗由子组件的 @hide 负责
 function crontabFill(value) {
   form.value.cronExpression = value
 }
 
 /** 任务日志列表查询 */
+// row 可能为空（工具栏的「日志」按钮）：此时 jobId 传 0，表示查看全部任务的日志
 function handleJobLog(row) {
   const jobId = row.jobId || 0
   router.push('/monitor/job-log/index/' + jobId)
 }
 
 /** 新增按钮操作 */
+// 新增前先 reset，避免复用上一次编辑残留在 form 里的数据
 function handleAdd() {
   reset()
   open.value = true
@@ -449,6 +494,7 @@ function handleAdd() {
 }
 
 /** 修改按钮操作 */
+// 工具栏进入时 row 为空，jobId 退化为选中行的 ids（single 保证只有 1 行被选中）
 function handleUpdate(row) {
   reset()
   const jobId = row.jobId || ids.value
@@ -460,6 +506,7 @@ function handleUpdate(row) {
 }
 
 /** 提交按钮 */
+// 有 jobId 走更新，否则新增；成功后关闭弹窗并刷新列表（停留在当前页）
 function submitForm() {
   proxy.$refs["jobRef"].validate(valid => {
     if (valid) {
@@ -481,6 +528,7 @@ function submitForm() {
 }
 
 /** 删除按钮操作 */
+// 支持单行删除（row.jobId）与批量删除（选中 ids 用逗号拼接后由后端按 Long[] 接收）
 function handleDelete(row) {
   const jobIds = row.jobId || ids.value
   proxy.$modal.confirm('是否确认删除定时任务编号为"' + jobIds + '"的数据项?').then(function () {
@@ -492,11 +540,13 @@ function handleDelete(row) {
 }
 
 /** 导出按钮操作 */
+// 导出走 proxy.download：GET schedule/job/export 直接下载 xlsx；文件名带时间戳避免覆盖
 function handleExport() {
   proxy.download("schedule/job/export", {
     ...queryParams.value,
   }, `job_${new Date().getTime()}.xlsx`)
 }
 
+// 页面初始化即加载列表（script setup 顶层直接调用，无需 onMounted）
 getList()
 </script>

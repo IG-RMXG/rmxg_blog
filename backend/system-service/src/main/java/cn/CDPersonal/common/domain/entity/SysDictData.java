@@ -9,6 +9,9 @@ import cn.CDPersonal.common.domain.model.BaseEntity;
 public class SysDictData extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
+    // dict_code 是自增主键；dict_type 只存类型字符串，没有外键，改类型时靠 SysDictService 级联同步。
+    // 后端只做持久化：is_default 的唯一性、默认项如何被前端选中，都由录入约定保证，没有服务端校验。
+
     /** 字典编码 */
     @Excel(name = "字典编码", cellType = Excel.ColumnType.NUMERIC)
     private Long dictCode;
@@ -21,6 +24,7 @@ public class SysDictData extends BaseEntity {
     @Excel(name = "字典标签")
     private String dictLabel;
 
+    // dictValue 是写进业务字段/请求参数的实际值，dictLabel 只用于展示；两者都是字符串，不要假设 value 一定是数字
     /** 字典键值 */
     @Excel(name = "字典键值")
     private String dictValue;
@@ -32,6 +36,7 @@ public class SysDictData extends BaseEntity {
     /** 样式属性（其他样式扩展） */
     private String cssClass;
 
+    // 展示样式（标签/表格），原样存取，后端不校验合法取值
     /** 表格回显样式 */
     private String listClass;
 
@@ -39,6 +44,7 @@ public class SysDictData extends BaseEntity {
     @Excel(name = "是否默认", readConverterExp = "Y=是,N=否")
     private String isDefault;
 
+    // 字典数据列表按传入的 status 过滤；前端 getDicts 只取 status='0' 的数据，停用项不下发
     /** 状态（0正常 1停用） */
     @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
     private String status;

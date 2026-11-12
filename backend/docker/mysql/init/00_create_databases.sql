@@ -14,6 +14,9 @@
 
 SET NAMES utf8mb4;
 
+-- 两个建库语句都带 IF NOT EXISTS，重复执行安全：不会删库、也不会覆盖已有数据。
+-- 两个库的排序规则不同：nacos_dev 用 general_ci（Nacos 官方默认），
+-- system 用 bin（大小写敏感），与 RuoYi 导出的 sys_dict_* 表结构一致。
 CREATE DATABASE IF NOT EXISTS `nacos_dev`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_general_ci;

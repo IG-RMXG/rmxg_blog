@@ -1,3 +1,9 @@
+// 路由总表与 router 实例。
+// constantRoutes 无需权限，任何访客都能访问（登录/注册/404/401/首页/个人中心/博客门户），
+//                在 createRouter 时一次性注册；
+// dynamicRoutes  是隐藏的二级功能页（分配角色、字典数据、调度日志、生成配置、文章编辑/详情），
+//                需要 permissions 或 roles，由 permission store 过滤后再 addRoute。
+// history 使用 createWebHistory，部署时必须保证所有前端路由回退到 index.html，否则刷新会 404。
 import { createWebHistory, createRouter } from 'vue-router'
 /* Layout */
 import Layout from '@/layout'
@@ -26,6 +32,8 @@ import Layout from '@/layout'
 
 // 公共路由
 export const constantRoutes = [
+  // 空白中转页：$tab.refreshPage 会先跳到 /redirect/<原路径> 再 replace 回来，
+  // 借「重新挂载」清掉 keep-alive 缓存实现强制刷新。它不是给用户看的页面，因此 hidden。
   {
     path: '/redirect',
     component: Layout,
@@ -47,6 +55,8 @@ export const constantRoutes = [
     component: () => import('@/views/register'),
     hidden: true
   },
+  // 通配兜底：所有未命中地址都落到 404。vue-router 4 按路径评分匹配、
+  // 不依赖声明顺序，因此它不需要写在数组末尾。
   {
     path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
@@ -70,6 +80,8 @@ export const constantRoutes = [
       }
     ]
   },
+  // 个人中心：activeTab 是可选路径段（profile/:activeTab?），
+  // 用户信息里提示「初始密码 / 密码过期」时会带 resetPwd，直接定位到重置密码 tab。
   {
     path: '/user',
     component: Layout,
@@ -134,6 +146,8 @@ export const constantRoutes = [
 ]
 
 // 动态路由，基于用户权限动态去加载
+// 这批都是 hidden 的二级功能页：不进菜单，只能由有权限的页面内部跳转；
+// permissions 与 roles 二选一，在 filterDynamicRoutes 中 permissions 优先。
 export const dynamicRoutes = [
   {
     path: '/system/user-auth',
@@ -235,6 +249,8 @@ export const dynamicRoutes = [
   }
 ]
 
+// 滚动行为：浏览器前进/后退时恢复离开时的位置（savedPosition），
+// 其余跳转一律回到顶部，避免从长列表点进详情后仍停在页面中间。
 const router = createRouter({
   history: createWebHistory(),
   routes: constantRoutes,

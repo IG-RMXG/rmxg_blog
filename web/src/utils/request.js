@@ -1,3 +1,13 @@
+/**
+ * axios 实例与全局拦截器，所有 api/*.js 的请求都经由这里发出。
+ *
+ * 对外契约：
+ * - baseURL 取 VITE_APP_BASE_API（由 vite 代理转发到网关）；
+ * - 请求头里 isToken: false 表示不带 token，repeatSubmit: false 表示关闭防重复提交；
+ * - 响应成功时返回 res.data（后端 JSON body，含 code/msg/data），调用方通常再取 .data；
+ * - code 非 200 由拦截器统一提示并 reject，业务代码不必重复弹窗；
+ * - 文件下载走 download()，responseType 为 blob，需自行识别“错误 JSON”。
+ */
 import axios from 'axios'
 import { ElNotification , ElMessageBox, ElMessage, ElLoading } from 'element-plus'
 import { getToken } from '@/utils/auth'
@@ -8,6 +18,7 @@ import { saveAs } from 'file-saver'
 import useUserStore from '@/store/modules/user'
 
 let downloadLoadingInstance
+// 并发请求同时过期时只弹一次重新登录框，靠这个标记互斥
 // 是否显示重新登录
 export let isRelogin = { show: false }
 
@@ -36,6 +47,8 @@ service.interceptors.request.use(config => {
   }
   // get请求映射params参数
   if (config.method === 'get' && config.params) {
+    // tansParams 拼出来的串末尾多一个 &，这里用 slice(0,-1) 去掉；
+    // 同时把 params 清空，避免 axios 再用 params 拼一遍
     let url = config.url + '?' + tansParams(config.params)
     url = url.slice(0, -1)
     config.params = {}
@@ -53,6 +66,7 @@ service.interceptors.request.use(config => {
       console.warn(`[${config.url}]: ` + '请求数据大小超出允许的5M限制，无法进行防重复提交验证。')
       return config
     }
+    // 用 sessionStorage 记录最近一次提交（键名固定为 sessionObj），只与它比较
     const sessionObj = cache.session.getJSON('sessionObj')
     if (sessionObj === undefined || sessionObj === null || sessionObj === '') {
       cache.session.setJSON('sessionObj', requestObj)
@@ -87,6 +101,7 @@ service.interceptors.response.use(res => {
       return res.data
     }
     if (code === 401) {
+      // 用户取消后停留在原页面，后续任意请求失败会再次触发此分支
       if (!isRelogin.show) {
         isRelogin.show = true
         ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', { confirmButtonText: '重新登录', cancelButtonText: '取消', type: 'warning' }).then(() => {
@@ -103,12 +118,14 @@ service.interceptors.response.use(res => {
       ElMessage({ message: msg, type: 'error' })
       return Promise.reject(new Error(msg))
     } else if (code === 601) {
+      // 601 为业务警告码：只弹警告，不跳转，但同样 reject，调用方仍需 catch
       ElMessage({ message: msg, type: 'warning' })
       return Promise.reject(new Error(msg))
     } else if (code !== 200) {
       ElNotification.error({ title: msg })
       return Promise.reject('error')
     } else {
+      // 成功时返回后端 body 本身：调用方拿到的 res 已含 code/msg/data，业务数据在 res.data
       return  Promise.resolve(res.data)
     }
   },
@@ -144,6 +161,8 @@ service.interceptors.response.use(res => {
 )
 
 // 通用下载方法
+// 以 form-urlencoded POST 表单参数，响应按 blob 取；后端出错时会返回 JSON 而不是文件流，
+// 所以先 blobValidate 判断，是 JSON 就解析出 msg 提示用户。
 export function download(url, params, filename, config) {
   downloadLoadingInstance = ElLoading.service({ text: "正在下载数据，请稍候", background: "rgba(0, 0, 0, 0.7)", })
   return service.post(url, params, {

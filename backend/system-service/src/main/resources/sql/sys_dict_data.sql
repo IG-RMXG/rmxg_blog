@@ -14,6 +14,12 @@
  Date: 03/11/2025 20:10:17
 */
 
+-- 文件说明：从 ruoyi-vue 库（MySQL 8.0.43）导出的 Navicat dump，只含 sys_dict_data 的 DDL，没有 USE 语句，
+-- 手工执行前必须先切到目标库；初始化版见 docker/mysql/init/04_sys_dict_data.sql
+-- （那一份额外带了 RuoYi 标准字典数据的 INSERT，本文件只有表结构）。
+-- 注意 DROP TABLE IF EXISTS 会清空现有字典数据，回填只能靠初始化脚本或后台「字典管理」页面。
+-- 字典数据靠 dict_type 与 sys_dict_type 关联（库层面没有外键）；list_class 只影响后台表格标签颜色。
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 

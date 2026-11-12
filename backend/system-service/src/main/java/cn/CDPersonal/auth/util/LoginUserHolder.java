@@ -27,6 +27,7 @@ public class LoginUserHolder {
         if (tokenService == null) {
             return null;
         }
+        // 依赖 ThreadLocal 绑定当前请求；异步线程、定时任务里取不到，会走下面的 null 分支
         ServletRequestAttributes attrs =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs == null) {

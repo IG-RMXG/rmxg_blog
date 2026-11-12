@@ -65,11 +65,15 @@ import { ElDialog as ElDialogBase } from 'element-plus'
  */
 defineOptions({ name: 'AppDialog', inheritAttrs: false })
 
+// inheritAttrs:false 关闭了自动透传，所有未声明属性（title / show-close / class / 事件等）都只能从 attrs 读取，
+// 由下面的 forwardAttrs 与各判断函数决定「自己消费」还是「继续转发」。
 const attrs = useAttrs()
 
 /** 这三个由本组件自己消费（width 做自适应、fullscreen 做切换、maximizable 是开关），不转发给 el-dialog */
 const NOT_FORWARDED = ['width', 'fullscreen', 'maximizable']
 
+// 除 NOT_FORWARDED 之外的属性整体透传，包括 before-close、destroy-on-close 等原生能力，
+// 因此视图那边写 <el-dialog v-model="open"> 时行为和原生组件完全一致。
 function forwardAttrs() {
   const out = {}
   for (const key in attrs) {
@@ -80,6 +84,8 @@ function forwardAttrs() {
   return out
 }
 
+// 只有显式传 :maximizable="false" 才隐藏按钮；未传该属性时默认开启。
+// 注意 attrs 上的字符串 'false'（模板里写 maximizable="false"）也要按 false 处理。
 function isMaximizable() {
   return attrs.maximizable !== false && attrs.maximizable !== 'false'
 }
